@@ -2,570 +2,603 @@
 
 module tb_router;
 
-    parameter DATA_WIDTH = 32;
-
-    // ============================================================
-    // CLOCK AND RESET
-    // ============================================================
-
     logic clk;
     logic rst_n;
 
-    // ============================================================
-    // INPUT 0
-    // ============================================================
+    // Input 0
+    logic [31:0] in0_tdata;
+    logic        in0_tvalid;
+    logic        in0_tready;
+    logic        in0_tlast;
+    logic        in0_tdest;
 
-    logic [DATA_WIDTH-1:0] tdata0;
-    logic                  tvalid0;
-    logic                  tlast0;
-    logic                  tdest0;
-    logic                  tready0;
+    // Input 1
+    logic [31:0] in1_tdata;
+    logic        in1_tvalid;
+    logic        in1_tready;
+    logic        in1_tlast;
+    logic        in1_tdest;
 
-    // ============================================================
-    // INPUT 1
-    // ============================================================
+    // Output 0
+    logic [31:0] out0_tdata;
+    logic        out0_tvalid;
+    logic        out0_tready;
+    logic        out0_tlast;
 
-    logic [DATA_WIDTH-1:0] tdata1;
-    logic                  tvalid1;
-    logic                  tlast1;
-    logic                  tdest1;
-    logic                  tready1;
+    // Output 1
+    logic [31:0] out1_tdata;
+    logic        out1_tvalid;
+    logic        out1_tready;
+    logic        out1_tlast;
 
-    // ============================================================
-    // OUTPUT 0
-    // ============================================================
+    integer pass_count;
+    integer fail_count;
 
-    logic [DATA_WIDTH-1:0] out_data0;
-    logic                  out_valid0;
-    logic                  out_last0;
-    logic                  out_src0;
-    logic                  out_ready0;
+    // ------------------------------------------------------------
+    // DUT
+    // ------------------------------------------------------------
 
-    // ============================================================
-    // OUTPUT 1
-    // ============================================================
+    router dut (
+        .clk         (clk),
+        .rst_n       (rst_n),
 
-    logic [DATA_WIDTH-1:0] out_data1;
-    logic                  out_valid1;
-    logic                  out_last1;
-    logic                  out_src1;
-    logic                  out_ready1;
+        .in0_tdata   (in0_tdata),
+        .in0_tvalid  (in0_tvalid),
+        .in0_tready  (in0_tready),
+        .in0_tlast   (in0_tlast),
+        .in0_tdest   (in0_tdest),
 
-    // ============================================================
-    // DUT: ROUTER
-    // ============================================================
+        .in1_tdata   (in1_tdata),
+        .in1_tvalid  (in1_tvalid),
+        .in1_tready  (in1_tready),
+        .in1_tlast   (in1_tlast),
+        .in1_tdest   (in1_tdest),
 
-    router #(
-        .DATA_WIDTH(DATA_WIDTH)
-    ) dut (
-        .clk(clk),
-        .rst_n(rst_n),
+        .out0_tdata  (out0_tdata),
+        .out0_tvalid (out0_tvalid),
+        .out0_tready (out0_tready),
+        .out0_tlast  (out0_tlast),
 
-        // Input 0
-        .tdata0(tdata0),
-        .tvalid0(tvalid0),
-        .tlast0(tlast0),
-        .tdest0(tdest0),
-        .tready0(tready0),
-
-        // Input 1
-        .tdata1(tdata1),
-        .tvalid1(tvalid1),
-        .tlast1(tlast1),
-        .tdest1(tdest1),
-        .tready1(tready1),
-
-        // Output 0
-        .out_data0(out_data0),
-        .out_valid0(out_valid0),
-        .out_last0(out_last0),
-        .out_src0(out_src0),
-        .out_ready0(out_ready0),
-
-        // Output 1
-        .out_data1(out_data1),
-        .out_valid1(out_valid1),
-        .out_last1(out_last1),
-        .out_src1(out_src1),
-        .out_ready1(out_ready1)
+        .out1_tdata  (out1_tdata),
+        .out1_tvalid (out1_tvalid),
+        .out1_tready (out1_tready),
+        .out1_tlast  (out1_tlast)
     );
 
-    // ============================================================
-    // CLOCK
-    // ============================================================
+    // ------------------------------------------------------------
+    // Clock: 10 ns period
+    // ------------------------------------------------------------
 
     initial begin
         clk = 1'b0;
-
         forever #5 clk = ~clk;
     end
 
-    // ============================================================
-    // DISPLAY SUCCESSFUL TRANSFERS
-    //
-    // A transfer occurs only when:
-    //
-    //     VALID && READY
-    //
-    // ============================================================
+    // ------------------------------------------------------------
+    // Result helpers
+    // ------------------------------------------------------------
 
-    always @(posedge clk) begin
-
-        if (rst_n) begin
-
-            if (out_valid0 && out_ready0) begin
-
-                $display(
-                    "[%0t] TRANSFER OUT0: data=%h src=%0d last=%0d",
-                    $time,
-                    out_data0,
-                    out_src0,
-                    out_last0
-                );
-
+    task check(
+        input logic condition,
+        input string message
+    );
+        begin
+            if (condition) begin
+                pass_count = pass_count + 1;
+                $display("PASS: %s", message);
             end
-
-            if (out_valid1 && out_ready1) begin
-
-                $display(
-                    "[%0t] TRANSFER OUT1: data=%h src=%0d last=%0d",
-                    $time,
-                    out_data1,
-                    out_src1,
-                    out_last1
-                );
-
+            else begin
+                fail_count = fail_count + 1;
+                $display("FAIL: %s", message);
             end
-
         end
+    endtask
 
-    end
+    task clear_inputs;
+        begin
+            in0_tdata  = 32'b0;
+            in0_tvalid = 1'b0;
+            in0_tlast  = 1'b0;
+            in0_tdest  = 1'b0;
 
-    // ============================================================
-    // RESET TASK
-    // ============================================================
+            in1_tdata  = 32'b0;
+            in1_tvalid = 1'b0;
+            in1_tlast  = 1'b0;
+            in1_tdest  = 1'b0;
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // Reset
+    // ------------------------------------------------------------
 
     task reset_dut;
-
         begin
-
             rst_n = 1'b0;
 
-            // Input 0
-            tdata0  = '0;
-            tvalid0 = 1'b0;
-            tlast0  = 1'b0;
-            tdest0  = 1'b0;
+            clear_inputs();
 
-            // Input 1
-            tdata1  = '0;
-            tvalid1 = 1'b0;
-            tlast1  = 1'b0;
-            tdest1  = 1'b0;
+            out0_tready = 1'b0;
+            out1_tready = 1'b0;
 
-            // Outputs initially not ready
-            out_ready0 = 1'b0;
-            out_ready1 = 1'b0;
-
-            repeat (3)
-                @(posedge clk);
+            repeat (2) @(posedge clk);
 
             rst_n = 1'b1;
 
+            @(negedge clk);
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // Send one beat on input 0.
+    //
+    // The task waits for the actual successful transfer:
+    // in0_tvalid && in0_tready.
+    // ------------------------------------------------------------
+
+    task send_in0(
+        input logic [31:0] data,
+        input logic        dest,
+        input logic        last
+    );
+        begin
+            @(negedge clk);
+
+            in0_tdata  = data;
+            in0_tdest  = dest;
+            in0_tlast  = last;
+            in0_tvalid = 1'b1;
+
+            do begin
+                @(posedge clk);
+            end while (!(in0_tvalid && in0_tready));
+
+            @(negedge clk);
+
+            in0_tvalid = 1'b0;
+            in0_tdata  = 32'b0;
+            in0_tlast  = 1'b0;
+            in0_tdest  = 1'b0;
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // Send one beat on input 1.
+    // ------------------------------------------------------------
+
+    task send_in1(
+        input logic [31:0] data,
+        input logic        dest,
+        input logic        last
+    );
+        begin
+            @(negedge clk);
+
+            in1_tdata  = data;
+            in1_tdest  = dest;
+            in1_tlast  = last;
+            in1_tvalid = 1'b1;
+
+            do begin
+                @(posedge clk);
+            end while (!(in1_tvalid && in1_tready));
+
+            @(negedge clk);
+
+            in1_tvalid = 1'b0;
+            in1_tdata  = 32'b0;
+            in1_tlast  = 1'b0;
+            in1_tdest  = 1'b0;
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // TEST 1: Input 0 -> Output 0
+    // ------------------------------------------------------------
+
+    task test_input0_output0;
+        begin
+            $display("\n================================================");
+            $display("TEST 1: INPUT 0 -> OUTPUT 0");
+            $display("================================================");
+
+            out0_tready = 1'b1;
+            out1_tready = 1'b1;
+
+            @(negedge clk);
+
+            in0_tdata  = 32'h0000_00AA;
+            in0_tdest  = 1'b0;
+            in0_tlast  = 1'b1;
+            in0_tvalid = 1'b1;
+
             @(posedge clk);
 
-        end
-
-    endtask
-
-    // ============================================================
-    // SEND ONE BEAT FROM INPUT 0
-    // ============================================================
-
-    task send0(
-        input [DATA_WIDTH-1:0] data,
-        input                  dest,
-        input                  last
-    );
-
-        begin
-
-            // Put data on the bus away from the sampling edge.
-            @(negedge clk);
-
-            tdata0  = data;
-            tdest0  = dest;
-            tlast0  = last;
-            tvalid0 = 1'b1;
-
-            // Hold VALID and DATA until READY.
-            while (!tready0)
-                @(negedge clk);
-
-            // Handshake has occurred.
-            @(negedge clk);
-
-            tvalid0 = 1'b0;
-            tlast0  = 1'b0;
-
-        end
-
-    endtask
-
-    // ============================================================
-    // SEND ONE BEAT FROM INPUT 1
-    // ============================================================
-
-    task send1(
-        input [DATA_WIDTH-1:0] data,
-        input                  dest,
-        input                  last
-    );
-
-        begin
-
-            @(negedge clk);
-
-            tdata1  = data;
-            tdest1  = dest;
-            tlast1  = last;
-            tvalid1 = 1'b1;
-
-            // Hold VALID and DATA until READY.
-            while (!tready1)
-                @(negedge clk);
-
-            // Handshake has occurred.
-            @(negedge clk);
-
-            tvalid1 = 1'b0;
-            tlast1  = 1'b0;
-
-        end
-
-    endtask
-
-    // ============================================================
-    // TEST 1
-    //
-    // Independent concurrent traffic:
-    //
-    // Input 0 -> Output 0
-    // Input 1 -> Output 1
-    // ============================================================
-
-    task test_independent;
-
-        begin
-
-            $display("");
-            $display("==========================================");
-            $display("TEST 1: INDEPENDENT TRAFFIC");
-            $display("==========================================");
-
-            out_ready0 = 1'b1;
-            out_ready1 = 1'b1;
-
-            fork
-
-                send0(
-                    32'hAAAA0001,
-                    1'b0,
-                    1'b1
-                );
-
-                send1(
-                    32'hBBBB0001,
-                    1'b1,
-                    1'b1
-                );
-
-            join
-
-            repeat (2)
-                @(posedge clk);
-
-        end
-
-    endtask
-
-    // ============================================================
-    // TEST 2
-    //
-    // CONTENTION
-    //
-    // Both inputs target Output 0.
-    // ============================================================
-
-    task test_contention;
-
-        begin
-
-            $display("");
-            $display("==========================================");
-            $display("TEST 2: CONTENTION");
-            $display("==========================================");
-
-            out_ready0 = 1'b1;
-            out_ready1 = 1'b1;
-
-            fork
-
-                send0(
-                    32'h11110001,
-                    1'b0,
-                    1'b1
-                );
-
-                send1(
-                    32'h22220001,
-                    1'b0,
-                    1'b1
-                );
-
-            join
-
-            repeat (3)
-                @(posedge clk);
-
-        end
-
-    endtask
-
-    // ============================================================
-    // TEST 3
-    //
-    // MULTI-BEAT PACKET
-    //
-    // Input 0 sends:
-    //
-    //   10000001
-    //   10000002
-    //   10000003 / TLAST
-    //
-    // ============================================================
-
-    task test_multibeat;
-
-        begin
-
-            $display("");
-            $display("==========================================");
-            $display("TEST 3: MULTI-BEAT PACKET");
-            $display("==========================================");
-
-            out_ready0 = 1'b1;
-            out_ready1 = 1'b1;
-
-            send0(
-                32'h10000001,
-                1'b0,
-                1'b0
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'h0000_00AA) &&
+                (out0_tlast == 1'b1),
+                "Input 0 correctly transferred to Output 0"
             );
 
-            send0(
-                32'h10000002,
-                1'b0,
-                1'b0
+            check(
+                !out1_tvalid,
+                "Output 1 remains inactive"
             );
 
-            send0(
-                32'h10000003,
-                1'b0,
-                1'b1
-            );
-
-            repeat (3)
-                @(posedge clk);
-
+            @(negedge clk);
+            in0_tvalid = 1'b0;
         end
-
     endtask
 
-    // ============================================================
-    // TEST 4
+    // ------------------------------------------------------------
+    // TEST 2: Input 1 -> Output 1
+    // ------------------------------------------------------------
+
+    task test_input1_output1;
+        begin
+            $display("\n================================================");
+            $display("TEST 2: INPUT 1 -> OUTPUT 1");
+            $display("================================================");
+
+            out0_tready = 1'b1;
+            out1_tready = 1'b1;
+
+            @(negedge clk);
+
+            in1_tdata  = 32'h0000_00BB;
+            in1_tdest  = 1'b1;
+            in1_tlast  = 1'b1;
+            in1_tvalid = 1'b1;
+
+            @(posedge clk);
+
+            check(
+                out1_tvalid &&
+                out1_tready &&
+                (out1_tdata == 32'h0000_00BB) &&
+                (out1_tlast == 1'b1),
+                "Input 1 correctly transferred to Output 1"
+            );
+
+            check(
+                !out0_tvalid,
+                "Output 0 remains inactive"
+            );
+
+            @(negedge clk);
+            in1_tvalid = 1'b0;
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // TEST 3: Concurrent independent traffic
+    // ------------------------------------------------------------
+
+    task test_concurrent;
+        begin
+            $display("\n================================================");
+            $display("TEST 3: CONCURRENT TRAFFIC");
+            $display("================================================");
+
+            out0_tready = 1'b1;
+            out1_tready = 1'b1;
+
+            @(negedge clk);
+
+            in0_tdata  = 32'h1111_1111;
+            in0_tdest  = 1'b0;
+            in0_tlast  = 1'b1;
+            in0_tvalid = 1'b1;
+
+            in1_tdata  = 32'h2222_2222;
+            in1_tdest  = 1'b1;
+            in1_tlast  = 1'b1;
+            in1_tvalid = 1'b1;
+
+            @(posedge clk);
+
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'h1111_1111) &&
+                out0_tlast,
+                "Input 0 transferred to Output 0 concurrently"
+            );
+
+            check(
+                out1_tvalid &&
+                out1_tready &&
+                (out1_tdata == 32'h2222_2222) &&
+                out1_tlast,
+                "Input 1 transferred to Output 1 concurrently"
+            );
+
+            @(negedge clk);
+            in0_tvalid = 1'b0;
+            in1_tvalid = 1'b0;
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // TEST 4: Output 0 contention and round-robin
     //
-    // BACKPRESSURE
-    //
-    // Output 0 is not ready for several cycles.
-    // Input 0 must hold its transaction.
-    // ============================================================
+    // Reset initializes rr0=0, so input 0 should win first.
+    // After input 0 completes, rr0 becomes 1, so input 1 should
+    // win the next contended packet.
+    // ------------------------------------------------------------
+
+    task test_contention_round_robin;
+        begin
+            $display("\n================================================");
+            $display("TEST 4: CONTENTION / ROUND-ROBIN");
+            $display("================================================");
+
+            out0_tready = 1'b1;
+            out1_tready = 1'b1;
+
+            // First contention: input 0 should win.
+            @(negedge clk);
+
+            in0_tdata  = 32'hAAAA_0001;
+            in0_tdest  = 1'b0;
+            in0_tlast  = 1'b1;
+            in0_tvalid = 1'b1;
+
+            in1_tdata  = 32'hBBBB_0001;
+            in1_tdest  = 1'b0;
+            in1_tlast  = 1'b1;
+            in1_tvalid = 1'b1;
+
+            @(posedge clk);
+
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'hAAAA_0001),
+                "First contention selects Input 0"
+            );
+
+            // Input 0 completed. Keep input 1 asserted.
+            @(negedge clk);
+            in0_tvalid = 1'b0;
+
+            @(posedge clk);
+
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'hBBBB_0001),
+                "Input 1 transfers after Input 0 completes"
+            );
+
+            @(negedge clk);
+            in1_tvalid = 1'b0;
+
+            // Second contention: round-robin should now favor input 1.
+            @(negedge clk);
+
+            in0_tdata  = 32'hAAAA_0002;
+            in0_tdest  = 1'b0;
+            in0_tlast  = 1'b1;
+            in0_tvalid = 1'b1;
+
+            in1_tdata  = 32'hBBBB_0002;
+            in1_tdest  = 1'b0;
+            in1_tlast  = 1'b1;
+            in1_tvalid = 1'b1;
+
+            @(posedge clk);
+
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'hBBBB_0002),
+                "Second contention selects Input 1"
+            );
+
+            @(negedge clk);
+            in0_tvalid = 1'b0;
+            in1_tvalid = 1'b0;
+        end
+    endtask
+
+    // ------------------------------------------------------------
+    // TEST 5: Backpressure and stable output payload
+    // ------------------------------------------------------------
 
     task test_backpressure;
+        logic [31:0] held_data;
+        logic        held_last;
 
         begin
+            $display("\n================================================");
+            $display("TEST 5: BACKPRESSURE");
+            $display("================================================");
 
-            $display("");
-            $display("==========================================");
-            $display("TEST 4: BACKPRESSURE");
-            $display("==========================================");
-
-            out_ready0 = 1'b0;
-            out_ready1 = 1'b1;
+            out0_tready = 1'b0;
+            out1_tready = 1'b1;
 
             @(negedge clk);
 
-            tdata0  = 32'hDEAD0001;
-            tdest0  = 1'b0;
-            tlast0  = 1'b1;
-            tvalid0 = 1'b1;
+            in0_tdata  = 32'hDEAD_BEEF;
+            in0_tdest  = 1'b0;
+            in0_tlast  = 1'b1;
+            in0_tvalid = 1'b1;
 
-            repeat (4) begin
+            @(posedge clk);
 
-                @(posedge clk);
+            held_data = out0_tdata;
+            held_last = out0_tlast;
 
-                $display(
-                    "[%0t] BACKPRESSURE: valid=%0d ready=%0d data=%h",
-                    $time,
-                    tvalid0,
-                    tready0,
-                    tdata0
-                );
+            check(
+                out0_tvalid &&
+                !out0_tready &&
+                !in0_tready &&
+                (out0_tdata == 32'hDEAD_BEEF),
+                "Backpressure reaches Input 0 and holds valid data"
+            );
 
-            end
+            // Keep downstream stalled for one more full clock cycle.
+            @(posedge clk);
 
-            // Receiver becomes ready.
-            out_ready0 = 1'b1;
+            check(
+                out0_tvalid &&
+                !out0_tready &&
+                (out0_tdata == held_data) &&
+                (out0_tlast == held_last),
+                "Output payload remains stable during stall"
+            );
 
-            while (!tready0)
-                @(posedge clk);
+            // Release downstream backpressure.
+            @(negedge clk);
+            out0_tready = 1'b1;
+
+            @(posedge clk);
+
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'hDEAD_BEEF) &&
+                out0_tlast,
+                "Held packet transfers after Output 0 becomes ready"
+            );
 
             @(negedge clk);
-
-            tvalid0 = 1'b0;
-            tlast0  = 1'b0;
-
-            repeat (3)
-                @(posedge clk);
-
+            in0_tvalid = 1'b0;
         end
-
     endtask
 
-    // ============================================================
-    // TEST 5
+    // ------------------------------------------------------------
+    // TEST 6: Multi-beat packet locking
     //
-    // PACKET LOCKING
-    //
-    // Input 0 starts a three-beat packet for Output 0.
-    //
-    // Input 1 tries to access Output 0 while Input 0's packet
-    // is still active.
-    //
-    // Expected ordering:
-    //
-    // AAAA1001
-    // AAAA1002
-    // AAAA1003
-    // BBBB2001
-    //
-    // Input 1 must NOT appear in the middle of Input 0's packet.
-    // ============================================================
+    // Input 0 sends a three-beat packet to output 0.
+    // Input 1 requests output 0 during the packet.
+    // Input 1 must wait until Input 0's tlast beat transfers.
+    // ------------------------------------------------------------
 
     task test_packet_lock;
-
         begin
+            $display("\n================================================");
+            $display("TEST 6: MULTI-BEAT PACKET LOCKING");
+            $display("================================================");
 
-            $display("");
-            $display("==========================================");
-            $display("TEST 5: PACKET LOCKING");
-            $display("==========================================");
+            out0_tready = 1'b1;
+            out1_tready = 1'b1;
 
-            out_ready0 = 1'b1;
-            out_ready1 = 1'b1;
+            // Beat 1 from input 0.
+            @(negedge clk);
 
-            fork
+            in0_tdata  = 32'h1000_0001;
+            in0_tdest  = 1'b0;
+            in0_tlast  = 1'b0;
+            in0_tvalid = 1'b1;
 
-                begin
+            @(posedge clk);
 
-                    send0(
-                        32'hAAAA1001,
-                        1'b0,
-                        1'b0
-                    );
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'h1000_0001) &&
+                !out0_tlast,
+                "Input 0 packet beat 1 transfers"
+            );
 
-                    send0(
-                        32'hAAAA1002,
-                        1'b0,
-                        1'b0
-                    );
+            // Beat 2 from input 0; input 1 begins requesting out0.
+            @(negedge clk);
 
-                    send0(
-                        32'hAAAA1003,
-                        1'b0,
-                        1'b1
-                    );
+            in0_tdata = 32'h1000_0002;
+            in0_tlast = 1'b0;
 
-                end
+            in1_tdata  = 32'h2000_0001;
+            in1_tdest  = 1'b0;
+            in1_tlast  = 1'b1;
+            in1_tvalid = 1'b1;
 
-                begin
+            @(posedge clk);
 
-                    // Give Input 0 time to start its packet.
-                    #12;
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'h1000_0002) &&
+                !out0_tlast,
+                "Lock keeps Output 0 assigned to Input 0 for beat 2"
+            );
 
-                    send1(
-                        32'hBBBB2001,
-                        1'b0,
-                        1'b1
-                    );
+            check(
+                !in1_tready,
+                "Input 1 is blocked while Input 0 packet is locked"
+            );
 
-                end
+            // Last beat from input 0.
+            @(negedge clk);
 
-            join
+            in0_tdata = 32'h1000_0003;
+            in0_tlast = 1'b1;
 
-            repeat (4)
-                @(posedge clk);
+            @(posedge clk);
 
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'h1000_0003) &&
+                out0_tlast,
+                "Input 0 final packet beat transfers"
+            );
+
+            // On the next cycle, the lock is released and input 1 wins.
+            @(negedge clk);
+            in0_tvalid = 1'b0;
+
+            @(posedge clk);
+
+            check(
+                out0_tvalid &&
+                out0_tready &&
+                (out0_tdata == 32'h2000_0001) &&
+                out0_tlast,
+                "Input 1 transfers only after Input 0 packet completes"
+            );
+
+            @(negedge clk);
+            in1_tvalid = 1'b0;
         end
-
     endtask
 
-    // ============================================================
-    // MAIN TEST SEQUENCE
-    // ============================================================
+    // ------------------------------------------------------------
+    // Main sequence
+    // ------------------------------------------------------------
 
     initial begin
-
-        // --------------------------------------------------------
-        // Waveform dump
-        // --------------------------------------------------------
-
         $dumpfile("router.vcd");
         $dumpvars(0, tb_router);
 
-        // --------------------------------------------------------
-        // Reset
-        // --------------------------------------------------------
+        pass_count = 0;
+        fail_count = 0;
 
         reset_dut();
 
-        // --------------------------------------------------------
-        // Run all tests
-        // --------------------------------------------------------
-
-        test_independent();
-
-        test_contention();
-
-        test_multibeat();
-
+        test_input0_output0();
+        test_input1_output1();
+        test_concurrent();
+        test_contention_round_robin();
         test_backpressure();
-
         test_packet_lock();
 
-        // --------------------------------------------------------
-        // Finish
-        // --------------------------------------------------------
+        $display("\n================================================");
+        $display("TEST SUMMARY");
+        $display("================================================");
+        $display("PASS COUNT: %0d", pass_count);
+        $display("FAIL COUNT: %0d", fail_count);
 
-        $display("");
-        $display("==========================================");
-        $display("ALL TESTS COMPLETED");
-        $display("==========================================");
+        if (fail_count == 0)
+            $display("RESULT: ALL TESTS PASSED");
+        else
+            $display("RESULT: TESTBENCH FAILED");
 
         #20;
-
         $finish;
-
     end
 
 endmodule
