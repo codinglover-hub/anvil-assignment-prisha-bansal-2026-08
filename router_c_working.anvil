@@ -1,0 +1,132 @@
+
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/* ============================================================
+ * INPUT 0
+ * ============================================================ */
+
+proc input0_buffer(
+    inp : right input_chan
+) {
+    reg packet0 : logic[34];
+    reg valid0 : logic;
+    reg dest0 : logic;
+    reg last0 : logic;
+
+    loop {
+        try b0 = recv inp.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            set dest0 := b0[1];
+            set last0 := b0[0];
+            cycle 1
+        } else {
+            cycle 1
+        }
+    }
+}
+
+
+/* ============================================================
+ * INPUT 1
+ * ============================================================ */
+
+proc input1_buffer(
+    inp : right input_chan
+) {
+    reg packet1 : logic[34];
+    reg valid1 : logic;
+    reg dest1 : logic;
+    reg last1 : logic;
+
+    loop {
+        try b1 = recv inp.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            set dest1 := b1[1];
+            set last1 := b1[0];
+            cycle 1
+        } else {
+            cycle 1
+        }
+    }
+}
+
+
+/* ============================================================
+ * OUTPUT 0
+ * ============================================================ */
+
+proc output0_control(
+    out0 : left output_chan
+) {
+    reg rr0 : logic;
+    reg lock0 : logic;
+    reg owner0 : logic;
+    reg winner0 : logic;
+
+    loop {
+        set winner0 := *rr0;
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * OUTPUT 1
+ * ============================================================ */
+
+proc output1_control(
+    out1 : left output_chan
+) {
+    reg rr1 : logic;
+    reg lock1 : logic;
+    reg owner1 : logic;
+    reg winner1 : logic;
+
+    loop {
+        set winner1 := *rr1;
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * TOP LEVEL
+ * ============================================================ */
+
+proc router() {
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out0_le -- out0_ri : output_chan;
+    chan out1_le -- out1_ri : output_chan;
+
+    spawn input0_buffer(
+        in0_ri
+    );
+
+    spawn input1_buffer(
+        in1_ri
+    );
+
+    spawn output0_control(
+        out0_le
+    );
+
+    spawn output1_control(
+        out1_le
+    );
+
+    loop {
+        cycle 1
+    }
+}
+

@@ -1,0 +1,161 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/* ============================================================
+ * INPUT 0 BUFFER
+ * ============================================================ */
+
+proc input0_buffer(
+    inp : right input_chan
+) {
+    reg packet0 : logic[34];
+    reg valid0 : logic;
+    reg last0 : logic;
+
+    loop {
+        try b0 = recv inp.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            set last0 := b0[0];
+            cycle 1
+        } else {
+            cycle 1
+        }
+    }
+}
+
+
+/* ============================================================
+ * INPUT 1 BUFFER
+ * ============================================================ */
+
+proc input1_buffer(
+    inp : right input_chan
+) {
+    reg packet1 : logic[34];
+    reg valid1 : logic;
+    reg last1 : logic;
+
+    loop {
+        try b1 = recv inp.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            set last1 := b1[0];
+            cycle 1
+        } else {
+            cycle 1
+        }
+    }
+}
+
+
+/* ============================================================
+ * ROUND-ROBIN ARBITER
+ * ============================================================ */
+
+proc arbiter(
+    out : left output_chan
+) {
+    reg rr : logic;
+    reg lock : logic;
+    reg owner : logic;
+
+    reg req0 : logic;
+    reg req1 : logic;
+
+    reg winner : logic;
+
+    loop {
+
+        /*
+         * Contention stimulus.
+         *
+         * Both inputs request the output.
+         */
+        set req0 := 1'b1;
+        set req1 := 1'b1;
+
+        /*
+         * Arbitration:
+         *
+         * lock = 1
+         *     -> owner wins
+         *
+         * lock = 0
+         *     req0 and req1 both active
+         *     -> RR decides
+         */
+        let next_winner = if *lock == 1'b1 {
+            *owner
+        } else {
+            if *req0 == 1'b1 {
+                if *req1 == 1'b1 {
+                    *rr
+                } else {
+                    1'b0
+                }
+            } else {
+                if *req1 == 1'b1 {
+                    1'b1
+                } else {
+                    1'b0
+                }
+            }
+        } >>
+
+        set winner := next_winner;
+
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * TOP LEVEL
+ * ============================================================ */
+
+proc router() {
+
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out_le -- out_ri : output_chan;
+
+
+    /*
+     * Input 0.
+     */
+    spawn input0_buffer(
+        in0_ri
+    );
+
+
+    /*
+     * Input 1.
+     */
+    spawn input1_buffer(
+        in1_ri
+    );
+
+
+    /*
+     * Round-robin arbiter.
+     */
+    spawn arbiter(
+        out_le
+    );
+
+
+    /*
+     * Keep router alive.
+     */
+    loop {
+        cycle 1
+    }
+}

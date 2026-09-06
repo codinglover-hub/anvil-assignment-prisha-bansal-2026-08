@@ -1,0 +1,257 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/*
+ * Output-0 arbitration state.
+ *
+ * rr0:
+ *   0 -> prefer input 0
+ *   1 -> prefer input 1
+ *
+ * lock0:
+ *   0 -> output is free
+ *   1 -> output is locked to owner0
+ *
+ * owner0:
+ *   input currently owning output 0
+ */
+proc output0_control() {
+
+    reg rr0 : logic;
+    reg lock0 : logic;
+    reg owner0 : logic;
+
+    reg req0 : logic;
+    reg req1 : logic;
+
+    reg winner0 : logic;
+    reg last0 : logic;
+
+
+    loop {
+
+        /*
+         * Temporary test requests.
+         *
+         * Both inputs request OUT0.
+         */
+        set req0 := 1'b1;
+        set req1 := 1'b1;
+
+        /*
+         * Test packet beat.
+         *
+         * 0 = not TLAST
+         * 1 = TLAST
+         */
+        set last0 := 1'b0;
+
+
+        /*
+         * Arbitration.
+         *
+         * If locked, continue using the owner.
+         *
+         * Otherwise:
+         *   only input 0 -> input 0
+         *   only input 1 -> input 1
+         *   both         -> rr0
+         */
+        let next_winner =
+            if (*lock0 == 1'b1) {
+                *owner0
+            } else {
+                if ((*req0 == 1'b1) && (*req1 == 1'b1)) {
+                    *rr0
+                } else {
+                    if (*req0 == 1'b1) {
+                        1'b0
+                    } else {
+                        if (*req1 == 1'b1) {
+                            1'b1
+                        } else {
+                            1'b0
+                        }
+                    }
+                }
+            } >>
+
+        set winner0 := next_winner >>
+
+
+        /*
+         * Lock update.
+         *
+         * New non-TLAST packet:
+         *     lock output.
+         *
+         * TLAST:
+         *     release output.
+         */
+        let next_lock =
+            if ((*lock0 == 1'b0) && (*last0 == 1'b0)) {
+                1'b1
+            } else {
+                if ((*lock0 == 1'b1) && (*last0 == 1'b1)) {
+                    1'b0
+                } else {
+                    *lock0
+                }
+            } >>
+
+        set lock0 := next_lock >>
+
+
+        /*
+         * Owner update.
+         *
+         * Only select a new owner when the output
+         * was previously unlocked.
+         */
+        let next_owner =
+            if ((*lock0 == 1'b0) && (*last0 == 1'b0)) {
+                *winner0
+            } else {
+                *owner0
+            } >>
+
+        set owner0 := next_owner >>
+
+
+        /*
+         * Round-robin update.
+         *
+         * Only change RR after contention.
+         */
+        let next_rr =
+            if ((*lock0 == 1'b0) &&
+                (*req0 == 1'b1) &&
+                (*req1 == 1'b1) &&
+                (*last0 == 1'b1)) {
+
+                if (*rr0 == 1'b0) {
+                    1'b1
+                } else {
+                    1'b0
+                }
+
+            } else {
+                *rr0
+            } >>
+
+        set rr0 := next_rr >>
+
+        cycle 1
+    }
+}
+
+
+/*
+ * Output-1 has independent arbitration state.
+ */
+proc output1_control() {
+
+    reg rr1 : logic;
+    reg lock1 : logic;
+    reg owner1 : logic;
+
+    reg req0 : logic;
+    reg req1 : logic;
+
+    reg winner1 : logic;
+    reg last1 : logic;
+
+
+    loop {
+
+        set req0 := 1'b1;
+        set req1 := 1'b1;
+
+        set last1 := 1'b0;
+
+
+        let next_winner =
+            if (*lock1 == 1'b1) {
+                *owner1
+            } else {
+                if ((*req0 == 1'b1) && (*req1 == 1'b1)) {
+                    *rr1
+                } else {
+                    if (*req0 == 1'b1) {
+                        1'b0
+                    } else {
+                        if (*req1 == 1'b1) {
+                            1'b1
+                        } else {
+                            1'b0
+                        }
+                    }
+                }
+            } >>
+
+        set winner1 := next_winner >>
+
+
+        let next_lock =
+            if ((*lock1 == 1'b0) && (*last1 == 1'b0)) {
+                1'b1
+            } else {
+                if ((*lock1 == 1'b1) && (*last1 == 1'b1)) {
+                    1'b0
+                } else {
+                    *lock1
+                }
+            } >>
+
+        set lock1 := next_lock >>
+
+
+        let next_owner =
+            if ((*lock1 == 1'b0) && (*last1 == 1'b0)) {
+                *winner1
+            } else {
+                *owner1
+            } >>
+
+        set owner1 := next_owner >>
+
+
+        let next_rr =
+            if ((*lock1 == 1'b0) &&
+                (*req0 == 1'b1) &&
+                (*req1 == 1'b1) &&
+                (*last1 == 1'b1)) {
+
+                if (*rr1 == 1'b0) {
+                    1'b1
+                } else {
+                    1'b0
+                }
+
+            } else {
+                *rr1
+            } >>
+
+        set rr1 := next_rr >>
+
+        cycle 1
+    }
+}
+
+
+proc router() {
+
+    spawn output0_control();
+
+    spawn output1_control();
+
+    loop {
+        cycle 1
+    }
+}

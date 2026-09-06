@@ -1,0 +1,377 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/*
+ * Input 0 packet buffer.
+ *
+ * The input beat is stored first.
+ * We do not forward the temporary recv value directly.
+ */
+proc input0_buffer(
+    inp : right input_chan
+) {
+    reg packet0 : logic[34];
+    reg valid0 : logic;
+    reg dest0 : logic;
+    reg last0 : logic;
+
+    loop {
+
+        if (*valid0 == 1'b0) {
+
+            try b = recv inp.beat {
+
+                set packet0 := b;
+                set dest0 := b[1];
+                set last0 := b[0];
+                set valid0 := 1'b1
+
+            } else {
+
+                cycle 1
+            }
+
+        } else {
+
+            cycle 1
+        }
+    }
+}
+
+
+/*
+ * Input 1 packet buffer.
+ */
+proc input1_buffer(
+    inp : right input_chan
+) {
+    reg packet1 : logic[34];
+    reg valid1 : logic;
+    reg dest1 : logic;
+    reg last1 : logic;
+
+    loop {
+
+        if (*valid1 == 1'b0) {
+
+            try b = recv inp.beat {
+
+                set packet1 := b;
+                set dest1 := b[1];
+                set last1 := b[0];
+                set valid1 := 1'b1
+
+            } else {
+
+                cycle 1
+            }
+
+        } else {
+
+            cycle 1
+        }
+    }
+}
+
+
+/*
+ * Output 0 controller.
+ *
+ * This stage uses the already verified:
+ *
+ *   rr0
+ *   lock0
+ *   owner0
+ *
+ * state representation.
+ */
+proc output0_control() {
+
+    reg rr0 : logic;
+    reg lock0 : logic;
+    reg owner0 : logic;
+
+    reg req0 : logic;
+    reg req1 : logic;
+
+    reg winner0 : logic;
+    reg last0 : logic;
+
+
+    loop {
+
+        /*
+         * Request signals will eventually come from
+         * the two input buffers.
+         *
+         * For this stage, requests are represented
+         * explicitly.
+         */
+        set req0 := 1'b0;
+        set req1 := 1'b0;
+
+        set last0 := 1'b0;
+
+
+        /*
+         * Select winner.
+         */
+        let next_winner =
+            if (*lock0 == 1'b1) {
+
+                *owner0
+
+            } else {
+
+                if ((*req0 == 1'b1) &&
+                    (*req1 == 1'b1)) {
+
+                    *rr0
+
+                } else {
+
+                    if (*req0 == 1'b1) {
+
+                        1'b0
+
+                    } else {
+
+                        if (*req1 == 1'b1) {
+
+                            1'b1
+
+                        } else {
+
+                            1'b0
+                        }
+                    }
+                }
+            } >>
+
+        set winner0 := next_winner >>
+
+
+        /*
+         * Lock/unlock.
+         */
+        let next_lock =
+            if ((*lock0 == 1'b0) &&
+                (*last0 == 1'b0)) {
+
+                1'b1
+
+            } else {
+
+                if ((*lock0 == 1'b1) &&
+                    (*last0 == 1'b1)) {
+
+                    1'b0
+
+                } else {
+
+                    *lock0
+                }
+            } >>
+
+        set lock0 := next_lock >>
+
+
+        /*
+         * Owner.
+         */
+        let next_owner =
+            if ((*lock0 == 1'b0) &&
+                (*last0 == 1'b0)) {
+
+                *winner0
+
+            } else {
+
+                *owner0
+            } >>
+
+        set owner0 := next_owner >>
+
+
+        /*
+         * Round-robin update after contention.
+         */
+        let next_rr =
+            if ((*lock0 == 1'b0) &&
+                (*req0 == 1'b1) &&
+                (*req1 == 1'b1) &&
+                (*last0 == 1'b1)) {
+
+                if (*rr0 == 1'b0) {
+
+                    1'b1
+
+                } else {
+
+                    1'b0
+                }
+
+            } else {
+
+                *rr0
+            } >>
+
+        set rr0 := next_rr >>
+
+        cycle 1
+    }
+}
+
+
+/*
+ * Output 1 controller.
+ */
+proc output1_control() {
+
+    reg rr1 : logic;
+    reg lock1 : logic;
+    reg owner1 : logic;
+
+    reg req0 : logic;
+    reg req1 : logic;
+
+    reg winner1 : logic;
+    reg last1 : logic;
+
+
+    loop {
+
+        set req0 := 1'b0;
+        set req1 := 1'b0;
+
+        set last1 := 1'b0;
+
+
+        let next_winner =
+            if (*lock1 == 1'b1) {
+
+                *owner1
+
+            } else {
+
+                if ((*req0 == 1'b1) &&
+                    (*req1 == 1'b1)) {
+
+                    *rr1
+
+                } else {
+
+                    if (*req0 == 1'b1) {
+
+                        1'b0
+
+                    } else {
+
+                        if (*req1 == 1'b1) {
+
+                            1'b1
+
+                        } else {
+
+                            1'b0
+                        }
+                    }
+                }
+            } >>
+
+        set winner1 := next_winner >>
+
+
+        let next_lock =
+            if ((*lock1 == 1'b0) &&
+                (*last1 == 1'b0)) {
+
+                1'b1
+
+            } else {
+
+                if ((*lock1 == 1'b1) &&
+                    (*last1 == 1'b1)) {
+
+                    1'b0
+
+                } else {
+
+                    *lock1
+                }
+            } >>
+
+        set lock1 := next_lock >>
+
+
+        let next_owner =
+            if ((*lock1 == 1'b0) &&
+                (*last1 == 1'b0)) {
+
+                *winner1
+
+            } else {
+
+                *owner1
+            } >>
+
+        set owner1 := next_owner >>
+
+
+        let next_rr =
+            if ((*lock1 == 1'b0) &&
+                (*req0 == 1'b1) &&
+                (*req1 == 1'b1) &&
+                (*last1 == 1'b1)) {
+
+                if (*rr1 == 1'b0) {
+
+                    1'b1
+
+                } else {
+
+                    1'b0
+                }
+
+            } else {
+
+                *rr1
+            } >>
+
+        set rr1 := next_rr >>
+
+        cycle 1
+    }
+}
+
+
+/*
+ * Router top.
+ */
+proc router() {
+
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    spawn input0_buffer(
+        in0_ri
+    );
+
+    spawn input1_buffer(
+        in1_ri
+    );
+
+    spawn output0_control();
+
+    spawn output1_control();
+
+    loop {
+        cycle 1
+    }
+}

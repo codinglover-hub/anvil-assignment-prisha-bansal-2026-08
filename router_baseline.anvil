@@ -1,0 +1,77 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+proc router_core(
+    in0 : right input_chan,
+    in1 : right input_chan,
+    out0 : left output_chan,
+    out1 : left output_chan
+) {
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic;
+    reg valid1 : logic;
+
+    reg rr0 : logic;
+    reg rr1 : logic;
+
+    reg lock0 : logic;
+    reg lock1 : logic;
+
+    reg owner0 : logic;
+    reg owner1 : logic;
+
+    loop {
+        try b0 = recv in0.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        try b1 = recv in1.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        set rr0 := 1'b0;
+        set rr1 := 1'b0;
+
+        set lock0 := 1'b0;
+        set lock1 := 1'b0;
+
+        set owner0 := 1'b0;
+        set owner1 := 1'b0;
+
+        cycle 1
+    }
+}
+
+proc router() {
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out0_le -- out0_ri : output_chan;
+    chan out1_le -- out1_ri : output_chan;
+
+    spawn router_core(
+        in0_ri,
+        in1_ri,
+        out0_le,
+        out1_le
+    );
+
+    loop {
+        cycle 1
+    }
+}

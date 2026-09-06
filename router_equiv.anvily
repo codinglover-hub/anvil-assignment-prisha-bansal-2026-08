@@ -1,0 +1,512 @@
+chan input_chan {
+    right beat : (logic@#34)
+}
+
+chan output_chan {
+    left beat : (logic@#34)
+}
+
+
+/* ============================================================
+ * INPUT 0 ROUTER
+ * ============================================================ */
+
+proc input0_route(
+    inp,
+    out0,
+    out1
+) =
+    reg packet : logic[34];
+    reg dest : logic[1];
+    reg valid : logic[1];
+
+    set valid := 1'b0;
+
+    while true {
+        try b = recv inp.beat {
+            set packet := b;
+            set dest := b[1];
+            set valid := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        if *valid == 1'b1 {
+            if *dest == 1'b0 {
+                send out0.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            } else {
+                send out1.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            }
+        } else {
+            cycle 1
+        }
+    }
+
+
+/* ============================================================
+ * INPUT 1 ROUTER
+ * ============================================================ */
+
+proc input1_route(
+    inp,
+    out0,
+    out1
+) =
+    reg packet : logic[34];
+    reg dest : logic[1];
+    reg valid : logic[1];
+
+    set valid := 1'b0;
+
+    while true {
+        try b = recv inp.beat {
+            set packet := b;
+            set dest := b[1];
+            set valid := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        if *valid == 1'b1 {
+            if *dest == 1'b0 {
+                send out0.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            } else {
+                send out1.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            }
+        } else {
+            cycle 1
+        }
+    }
+
+
+/* ============================================================
+ * OUTPUT 0 ARBITER
+ * ============================================================ */
+
+proc output0_arbiter(
+    in0,
+    in1,
+    outp
+) =
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic[1];
+    reg valid1 : logic[1];
+
+    reg rr : logic[1];
+    reg locked : logic[1];
+    reg owner : logic[1];
+
+    reg selected : logic[1];
+
+    set valid0 := 1'b0;
+    set valid1 := 1'b0;
+
+    set rr := 1'b0;
+    set locked := 1'b0;
+    set owner := 1'b0;
+
+    while true {
+
+        /* Receive request from input 0 */
+        try b0 = recv in0.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* Receive request from input 1 */
+        try b1 = recv in1.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* ====================================================
+         * Packet is currently locked
+         * ==================================================== */
+
+        if *locked == 1'b1 {
+
+            if *owner == 1'b0 {
+
+                if *valid0 == 1'b1 {
+
+                    send outp.beat(*packet0) >>
+                    set valid0 := 1'b0;
+
+                    if *packet0[0] == 1'b1 {
+                        set locked := 1'b0;
+
+                        if *valid1 == 1'b1 {
+                            set rr := 1'b1;
+                        } else {
+                            *rr;
+                        }
+                    }
+
+                    cycle 1
+                } else {
+                    cycle 1
+                }
+
+            } else {
+
+                if *valid1 == 1'b1 {
+
+                    send outp.beat(*packet1) >>
+                    set valid1 := 1'b0;
+
+                    if *packet1[0] == 1'b1 {
+                        set locked := 1'b0;
+
+                        if *valid0 == 1'b1 {
+                            set rr := 1'b0;
+                        } else {
+                            *rr;
+                        }
+                    }
+
+                    cycle 1
+                } else {
+                    cycle 1
+                }
+            }
+
+
+        /* ====================================================
+         * No packet lock
+         * ==================================================== */
+
+        } else {
+
+            /* Both inputs have a request */
+            if *valid0 == 1'b1 {
+
+                if *valid1 == 1'b1 {
+
+                    /*
+                     * Round-robin:
+                     * rr = 0 -> input 0
+                     * rr = 1 -> input 1
+                     */
+                    set selected := *rr;
+
+                    if *selected == 1'b0 {
+
+                        send outp.beat(*packet0) >>
+                        set valid0 := 1'b0;
+
+                        if *packet0[0] == 1'b1 {
+                            set locked := 1'b0;
+                            set rr := 1'b1;
+                        } else {
+                            set locked := 1'b1;
+                            set owner := 1'b0;
+                        }
+
+                        cycle 1
+
+                    } else {
+
+                        send outp.beat(*packet1) >>
+                        set valid1 := 1'b0;
+
+                        if *packet1[0] == 1'b1 {
+                            set locked := 1'b0;
+                            set rr := 1'b0;
+                        } else {
+                            set locked := 1'b1;
+                            set owner := 1'b1;
+                        }
+
+                        cycle 1
+                    }
+
+
+                /* Only input 0 has a request */
+                } else {
+
+                    send outp.beat(*packet0) >>
+                    set valid0 := 1'b0;
+
+                    if *packet0[0] == 1'b1 {
+                        set locked := 1'b0;
+                    } else {
+                        set locked := 1'b1;
+                        set owner := 1'b0;
+                    }
+
+                    cycle 1
+                }
+
+
+            /* Input 0 has no request */
+            } else {
+
+                if *valid1 == 1'b1 {
+
+                    send outp.beat(*packet1) >>
+                    set valid1 := 1'b0;
+
+                    if *packet1[0] == 1'b1 {
+                        set locked := 1'b0;
+                    } else {
+                        set locked := 1'b1;
+                        set owner := 1'b1;
+                    }
+
+                    cycle 1
+
+                } else {
+                    cycle 1
+                }
+            }
+        }
+    }
+
+
+/* ============================================================
+ * OUTPUT 1 ARBITER
+ * ============================================================ */
+
+proc output1_arbiter(
+    in0,
+    in1,
+    outp
+) =
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic[1];
+    reg valid1 : logic[1];
+
+    reg rr : logic[1];
+    reg locked : logic[1];
+    reg owner : logic[1];
+
+    reg selected : logic[1];
+
+    set valid0 := 1'b0;
+    set valid1 := 1'b0;
+
+    set rr := 1'b0;
+    set locked := 1'b0;
+    set owner := 1'b0;
+
+    while true {
+
+        /* Receive request from input 0 */
+        try b0 = recv in0.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* Receive request from input 1 */
+        try b1 = recv in1.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* ====================================================
+         * Packet locked
+         * ==================================================== */
+
+        if *locked == 1'b1 {
+
+            if *owner == 1'b0 {
+
+                if *valid0 == 1'b1 {
+
+                    send outp.beat(*packet0) >>
+                    set valid0 := 1'b0;
+
+                    if *packet0[0] == 1'b1 {
+                        set locked := 1'b0;
+
+                        if *valid1 == 1'b1 {
+                            set rr := 1'b1;
+                        } else {
+                            *rr;
+                        }
+                    }
+
+                    cycle 1
+
+                } else {
+                    cycle 1
+                }
+
+            } else {
+
+                if *valid1 == 1'b1 {
+
+                    send outp.beat(*packet1) >>
+                    set valid1 := 1'b0;
+
+                    if *packet1[0] == 1'b1 {
+                        set locked := 1'b0;
+
+                        if *valid0 == 1'b1 {
+                            set rr := 1'b0;
+                        } else {
+                            *rr;
+                        }
+                    }
+
+                    cycle 1
+
+                } else {
+                    cycle 1
+                }
+            }
+
+
+        /* ====================================================
+         * No packet lock
+         * ==================================================== */
+
+        } else {
+
+            if *valid0 == 1'b1 {
+
+                /* Both request output 1 */
+                if *valid1 == 1'b1 {
+
+                    set selected := *rr;
+
+                    if *selected == 1'b0 {
+
+                        send outp.beat(*packet0) >>
+                        set valid0 := 1'b0;
+
+                        if *packet0[0] == 1'b1 {
+                            set locked := 1'b0;
+                            set rr := 1'b1;
+                        } else {
+                            set locked := 1'b1;
+                            set owner := 1'b0;
+                        }
+
+                        cycle 1
+
+                    } else {
+
+                        send outp.beat(*packet1) >>
+                        set valid1 := 1'b0;
+
+                        if *packet1[0] == 1'b1 {
+                            set locked := 1'b0;
+                            set rr := 1'b0;
+                        } else {
+                            set locked := 1'b1;
+                            set owner := 1'b1;
+                        }
+
+                        cycle 1
+                    }
+
+
+                /* Only input 0 */
+                } else {
+
+                    send outp.beat(*packet0) >>
+                    set valid0 := 1'b0;
+
+                    if *packet0[0] == 1'b1 {
+                        set locked := 1'b0;
+                    } else {
+                        set locked := 1'b1;
+                        set owner := 1'b0;
+                    }
+
+                    cycle 1
+                }
+
+
+            /* Input 0 absent */
+            } else {
+
+                if *valid1 == 1'b1 {
+
+                    send outp.beat(*packet1) >>
+                    set valid1 := 1'b0;
+
+                    if *packet1[0] == 1'b1 {
+                        set locked := 1'b0;
+                    } else {
+                        set locked := 1'b1;
+                        set owner := 1'b1;
+                    }
+
+                    cycle 1
+
+                } else {
+                    cycle 1
+                }
+            }
+        }
+    }
+
+
+/* ============================================================
+ * TOP LEVEL
+ * ============================================================ */
+
+chan in0_le -- in0_ri : input_chan;
+chan in1_le -- in1_ri : input_chan;
+
+chan out0_le -- out0_ri : output_chan;
+chan out1_le -- out1_ri : output_chan;
+
+chan req0_a_le -- req0_a_ri : input_chan;
+chan req0_b_le -- req0_b_ri : input_chan;
+
+chan req1_a_le -- req1_a_ri : input_chan;
+chan req1_b_le -- req1_b_ri : input_chan;
+
+
+spawn input0_route(
+    in0_ri,
+    req0_a_le,
+    req1_a_le
+);
+
+spawn input1_route(
+    in1_ri,
+    req0_b_le,
+    req1_b_le
+);
+
+spawn output0_arbiter(
+    req0_a_ri,
+    req0_b_ri,
+    out0_le
+);
+
+spawn output1_arbiter(
+    req1_a_ri,
+    req1_b_ri,
+    out1_le
+);

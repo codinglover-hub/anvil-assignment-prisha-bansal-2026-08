@@ -1,0 +1,489 @@
+/*
+ * router.anvil
+ *
+ * 2-input / 2-output packet router.
+ *
+ * Packet format:
+ *
+ *   [33:2] = 32-bit data
+ *   [1]    = destination
+ *   [0]    = TLAST
+ *
+ * destination 0 -> output 0
+ * destination 1 -> output 1
+ *
+ * Each output has:
+ *   - independent round-robin pointer
+ *   - independent packet lock
+ *   - independent owner
+ *
+ * Anvil implementation uses buffered packets.
+ */
+
+
+/* ================================================================
+ * CHANNEL TYPES
+ * ================================================================ */
+
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/* ================================================================
+ * ROUTER
+ * ================================================================ */
+
+proc router_core(
+    in0  : right input_chan,
+    in1  : right input_chan,
+    out0 : left output_chan,
+    out1 : left output_chan
+) {
+
+    /* ------------------------------------------------------------
+     * Input packet buffers
+     * ------------------------------------------------------------ */
+
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic;
+    reg valid1 : logic;
+
+
+    /* ------------------------------------------------------------
+     * Output 0 state
+     * ------------------------------------------------------------ */
+
+    reg rr0 : logic;
+    reg lock0 : logic;
+    reg owner0 : logic;
+
+
+    /* ------------------------------------------------------------
+     * Output 1 state
+     * ------------------------------------------------------------ */
+
+    reg rr1 : logic;
+    reg lock1 : logic;
+    reg owner1 : logic;
+
+
+    /* ============================================================
+     * MAIN CLOCKED LOOP
+     * ============================================================ */
+
+    loop {
+
+        /* ========================================================
+         * INPUT 0 BUFFER
+         * ======================================================== */
+
+        if (*valid0 == 1'b0) {
+
+            try b0 = recv in0.beat {
+
+                set packet0 := b0 >>
+                set valid0 := 1'b1
+
+            } else {
+
+                cycle 1
+            }
+
+        } else {
+
+            cycle 1
+        } >>
+
+
+        /* ========================================================
+         * INPUT 1 BUFFER
+         * ======================================================== */
+
+        if (*valid1 == 1'b0) {
+
+            try b1 = recv in1.beat {
+
+                set packet1 := b1 >>
+                set valid1 := 1'b1
+
+            } else {
+
+                cycle 1
+            }
+
+        } else {
+
+            cycle 1
+        } >>
+
+
+        /* ========================================================
+         * OUTPUT 0
+         * ======================================================== */
+
+        if (*lock0 == 1'b1) {
+
+            /* ----------------------------------------------------
+             * Locked output 0.
+             * ---------------------------------------------------- */
+
+            let owner0_is_0 = (*owner0 == 1'b0) >>
+
+            if (owner0_is_0) {
+
+                let can_send0 =
+                    if ((*valid0 == 1'b1) && (*packet0[1] == 1'b0)) {
+                        1'b1
+                    } else {
+                        1'b0
+                    } >>
+
+                if (can_send0 == 1'b1) {
+
+                    send out0.beat(*packet0) >>
+
+                    let next_lock0 =
+                        if (*packet0[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    set lock0 := next_lock0 >>
+                    set valid0 := 1'b0
+                }
+
+            } else {
+
+                let can_send1 =
+                    if ((*valid1 == 1'b1) && (*packet1[1] == 1'b0)) {
+                        1'b1
+                    } else {
+                        1'b0
+                    } >>
+
+                if (can_send1 == 1'b1) {
+
+                    send out0.beat(*packet1) >>
+
+                    let next_lock0 =
+                        if (*packet1[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    set lock0 := next_lock0 >>
+                    set valid1 := 1'b0
+                }
+            }
+
+        } else {
+
+            /* ----------------------------------------------------
+             * Output 0 is unlocked.
+             *
+             * Determine requests.
+             * ---------------------------------------------------- */
+
+            let req0 =
+                if ((*valid0 == 1'b1) && (*packet0[1] == 1'b0)) {
+                    1'b1
+                } else {
+                    1'b0
+                } >>
+
+            let req1 =
+                if ((*valid1 == 1'b1) && (*packet1[1] == 1'b0)) {
+                    1'b1
+                } else {
+                    1'b0
+                } >>
+
+
+            /* ----------------------------------------------------
+             * Arbitration.
+             *
+             * winner0:
+             *   0 = input 0
+             *   1 = input 1
+             * ---------------------------------------------------- */
+
+            let winner0 =
+                if ((req0 == 1'b1) && (req1 == 1'b1)) {
+
+                    if (*rr0 == 1'b0) {
+                        1'b0
+                    } else {
+                        1'b1
+                    }
+
+                } else {
+
+                    if (req0 == 1'b1) {
+                        1'b0
+                    } else {
+                        1'b1
+                    }
+                } >>
+
+
+            /* ----------------------------------------------------
+             * Was there a request?
+             * ---------------------------------------------------- */
+
+            let any_req0 =
+                if ((req0 == 1'b1) || (req1 == 1'b1)) {
+                    1'b1
+                } else {
+                    1'b0
+                } >>
+
+
+            if (any_req0 == 1'b1) {
+
+                if (winner0 == 1'b0) {
+
+                    send out0.beat(*packet0) >>
+
+                    let next_lock0 =
+                        if (*packet0[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    let next_rr0 =
+                        if ((req0 == 1'b1) && (req1 == 1'b1)) {
+                            1'b1
+                        } else {
+                            *rr0
+                        } >>
+
+                    set lock0 := next_lock0 >>
+                    set owner0 := 1'b0 >>
+                    set rr0 := next_rr0 >>
+                    set valid0 := 1'b0
+
+                } else {
+
+                    send out0.beat(*packet1) >>
+
+                    let next_lock0 =
+                        if (*packet1[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    let next_rr0 =
+                        if ((req0 == 1'b1) && (req1 == 1'b1)) {
+                            1'b0
+                        } else {
+                            *rr0
+                        } >>
+
+                    set lock0 := next_lock0 >>
+                    set owner0 := 1'b1 >>
+                    set rr0 := next_rr0 >>
+                    set valid1 := 1'b0
+                }
+            }
+        } >>
+
+
+        /* ========================================================
+         * OUTPUT 1
+         * ======================================================== */
+
+        if (*lock1 == 1'b1) {
+
+            let owner1_is_0 = (*owner1 == 1'b0) >>
+
+            if (owner1_is_0) {
+
+                let can_send0 =
+                    if ((*valid0 == 1'b1) && (*packet0[1] == 1'b1)) {
+                        1'b1
+                    } else {
+                        1'b0
+                    } >>
+
+                if (can_send0 == 1'b1) {
+
+                    send out1.beat(*packet0) >>
+
+                    let next_lock1 =
+                        if (*packet0[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    set lock1 := next_lock1 >>
+                    set valid0 := 1'b0
+                }
+
+            } else {
+
+                let can_send1 =
+                    if ((*valid1 == 1'b1) && (*packet1[1] == 1'b1)) {
+                        1'b1
+                    } else {
+                        1'b0
+                    } >>
+
+                if (can_send1 == 1'b1) {
+
+                    send out1.beat(*packet1) >>
+
+                    let next_lock1 =
+                        if (*packet1[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    set lock1 := next_lock1 >>
+                    set valid1 := 1'b0
+                }
+            }
+
+        } else {
+
+            /* ----------------------------------------------------
+             * Output 1 is unlocked.
+             * ---------------------------------------------------- */
+
+            let req0 =
+                if ((*valid0 == 1'b1) && (*packet0[1] == 1'b1)) {
+                    1'b1
+                } else {
+                    1'b0
+                } >>
+
+            let req1 =
+                if ((*valid1 == 1'b1) && (*packet1[1] == 1'b1)) {
+                    1'b1
+                } else {
+                    1'b0
+                } >>
+
+
+            let winner1 =
+                if ((req0 == 1'b1) && (req1 == 1'b1)) {
+
+                    if (*rr1 == 1'b0) {
+                        1'b0
+                    } else {
+                        1'b1
+                    }
+
+                } else {
+
+                    if (req0 == 1'b1) {
+                        1'b0
+                    } else {
+                        1'b1
+                    }
+                } >>
+
+
+            let any_req1 =
+                if ((req0 == 1'b1) || (req1 == 1'b1)) {
+                    1'b1
+                } else {
+                    1'b0
+                } >>
+
+
+            if (any_req1 == 1'b1) {
+
+                if (winner1 == 1'b0) {
+
+                    send out1.beat(*packet0) >>
+
+                    let next_lock1 =
+                        if (*packet0[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    let next_rr1 =
+                        if ((req0 == 1'b1) && (req1 == 1'b1)) {
+                            1'b1
+                        } else {
+                            *rr1
+                        } >>
+
+                    set lock1 := next_lock1 >>
+                    set owner1 := 1'b0 >>
+                    set rr1 := next_rr1 >>
+                    set valid0 := 1'b0
+
+                } else {
+
+                    send out1.beat(*packet1) >>
+
+                    let next_lock1 =
+                        if (*packet1[0] == 1'b1) {
+                            1'b0
+                        } else {
+                            1'b1
+                        } >>
+
+                    let next_rr1 =
+                        if ((req0 == 1'b1) && (req1 == 1'b1)) {
+                            1'b0
+                        } else {
+                            *rr1
+                        } >>
+
+                    set lock1 := next_lock1 >>
+                    set owner1 := 1'b1 >>
+                    set rr1 := next_rr1 >>
+                    set valid1 := 1'b0
+                }
+            }
+        } >>
+
+        cycle 1
+    }
+}
+
+
+/* ================================================================
+ * TOP LEVEL
+ * ================================================================ */
+
+proc router() {
+
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out0_le -- out0_ri : output_chan;
+    chan out1_le -- out1_ri : output_chan;
+
+
+    /* Initial state is established during the first loop iteration. */
+
+    spawn router_core(
+        in0_ri,
+        in1_ri,
+        out0_le,
+        out1_le
+    );
+
+
+    loop {
+        cycle 1
+    }
+}

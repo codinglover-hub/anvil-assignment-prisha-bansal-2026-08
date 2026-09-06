@@ -1,0 +1,478 @@
+/*
+ * router.anvil
+ *
+ * 2-input / 2-output packet router
+ *
+ * Input:
+ *   bit 33 : destination
+ *   bit 32 : last
+ *   bits 31:0 : data
+ *
+ * Encoding:
+ *   #{dest, last, data}
+ *
+ * Destination:
+ *   0 -> output 0
+ *   1 -> output 1
+ *
+ * Arbitration:
+ *   Per-output round robin
+ *
+ * Packet locking:
+ *   Once an input wins an output, it keeps that output
+ *   until the beat with last=1 is transmitted.
+ */
+
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+proc router_core(
+    in0  : right input_chan,
+    in1  : right input_chan,
+    out0 : left output_chan,
+    out1 : left output_chan
+) {
+
+    /*
+     * Input storage.
+     */
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic;
+    reg valid1 : logic;
+
+
+    /*
+     * Round-robin state.
+     *
+     * rr0 = next preferred input for output 0
+     * rr1 = next preferred input for output 1
+     *
+     * 0 -> prefer input 0
+     * 1 -> prefer input 1
+     */
+    reg rr0 : logic;
+    reg rr1 : logic;
+
+
+    /*
+     * Packet locks.
+     */
+    reg lock0 : logic;
+    reg lock1 : logic;
+
+    reg owner0 : logic;
+    reg owner1 : logic;
+
+
+    /*
+     * Initial state.
+     */
+    set valid0 := 1'b0;
+    set valid1 := 1'b0;
+
+    set rr0 := 1'b0;
+    set rr1 := 1'b0;
+
+    set lock0 := 1'b0;
+    set lock1 := 1'b0;
+
+    set owner0 := 1'b0;
+    set owner1 := 1'b0;
+
+
+    loop {
+
+        /*
+         * ========================================================
+         * RECEIVE INPUT 0
+         * ========================================================
+         *
+         * Only receive a new beat when the input register is empty.
+         */
+        if (!valid0) {
+
+            try b0 = recv in0.beat {
+
+                set packet0 := b0;
+                set valid0 := 1'b1;
+
+            } else {
+
+                cycle 1
+            }
+
+        } else {
+
+            cycle 1
+        }
+
+
+        /*
+         * ========================================================
+         * RECEIVE INPUT 1
+         * ========================================================
+         */
+        if (!valid1) {
+
+            try b1 = recv in1.beat {
+
+                set packet1 := b1;
+                set valid1 := 1'b1;
+
+            } else {
+
+                cycle 1
+            }
+
+        } else {
+
+            cycle 1
+        }
+
+
+        /*
+         * ========================================================
+         * OUTPUT 0
+         * ========================================================
+         */
+
+        if (lock0) {
+
+            /*
+             * Existing packet owns output 0.
+             */
+            if (owner0 == 1'b0) {
+
+                if (valid0) {
+
+                    send out0.beat(packet0);
+
+                    if (packet0[32]) {
+
+                        set valid0 := 1'b0;
+                        set lock0 := 1'b0;
+
+                        set rr0 := 1'b1;
+
+                    } else {
+
+                        set valid0 := 1'b0;
+                        set lock0 := 1'b1;
+
+                    }
+                }
+
+            } else {
+
+                if (valid1) {
+
+                    send out0.beat(packet1);
+
+                    if (packet1[32]) {
+
+                        set valid1 := 1'b0;
+                        set lock0 := 1'b0;
+
+                        set rr0 := 1'b0;
+
+                    } else {
+
+                        set valid1 := 1'b0;
+                        set lock0 := 1'b1;
+
+                    }
+                }
+            }
+
+        } else {
+
+            /*
+             * No packet currently owns output 0.
+             *
+             * Round robin chooses the first available input.
+             */
+
+            if (rr0 == 1'b0) {
+
+                if (valid0 &&
+                    (packet0[33] == 1'b0)) {
+
+                    set owner0 := 1'b0;
+                    set lock0 := 1'b1;
+
+                    send out0.beat(packet0);
+
+                    if (packet0[32]) {
+
+                        set valid0 := 1'b0;
+                        set lock0 := 1'b0;
+
+                        set rr0 := 1'b1;
+
+                    } else {
+
+                        set valid0 := 1'b0;
+
+                    }
+
+                } else if (valid1 &&
+                           (packet1[33] == 1'b0)) {
+
+                    set owner0 := 1'b1;
+                    set lock0 := 1'b1;
+
+                    send out0.beat(packet1);
+
+                    if (packet1[32]) {
+
+                        set valid1 := 1'b0;
+                        set lock0 := 1'b0;
+
+                        set rr0 := 1'b0;
+
+                    } else {
+
+                        set valid1 := 1'b0;
+
+                    }
+                }
+
+            } else {
+
+                if (valid1 &&
+                    (packet1[33] == 1'b0)) {
+
+                    set owner0 := 1'b1;
+                    set lock0 := 1'b1;
+
+                    send out0.beat(packet1);
+
+                    if (packet1[32]) {
+
+                        set valid1 := 1'b0;
+                        set lock0 := 1'b0;
+
+                        set rr0 := 1'b0;
+
+                    } else {
+
+                        set valid1 := 1'b0;
+
+                    }
+
+                } else if (valid0 &&
+                           (packet0[33] == 1'b0)) {
+
+                    set owner0 := 1'b0;
+                    set lock0 := 1'b1;
+
+                    send out0.beat(packet0);
+
+                    if (packet0[32]) {
+
+                        set valid0 := 1'b0;
+                        set lock0 := 1'b0;
+
+                        set rr0 := 1'b1;
+
+                    } else {
+
+                        set valid0 := 1'b0;
+
+                    }
+                }
+            }
+        }
+
+
+        /*
+         * ========================================================
+         * OUTPUT 1
+         * ========================================================
+         */
+
+        if (lock1) {
+
+            /*
+             * Existing packet owns output 1.
+             */
+
+            if (owner1 == 1'b0) {
+
+                if (valid0) {
+
+                    send out1.beat(packet0);
+
+                    if (packet0[32]) {
+
+                        set valid0 := 1'b0;
+                        set lock1 := 1'b0;
+
+                        set rr1 := 1'b1;
+
+                    } else {
+
+                        set valid0 := 1'b0;
+
+                    }
+                }
+
+            } else {
+
+                if (valid1) {
+
+                    send out1.beat(packet1);
+
+                    if (packet1[32]) {
+
+                        set valid1 := 1'b0;
+                        set lock1 := 1'b0;
+
+                        set rr1 := 1'b0;
+
+                    } else {
+
+                        set valid1 := 1'b0;
+
+                    }
+                }
+            }
+
+        } else {
+
+            /*
+             * No packet owns output 1.
+             */
+
+            if (rr1 == 1'b0) {
+
+                if (valid0 &&
+                    (packet0[33] == 1'b1)) {
+
+                    set owner1 := 1'b0;
+                    set lock1 := 1'b1;
+
+                    send out1.beat(packet0);
+
+                    if (packet0[32]) {
+
+                        set valid0 := 1'b0;
+                        set lock1 := 1'b0;
+
+                        set rr1 := 1'b1;
+
+                    } else {
+
+                        set valid0 := 1'b0;
+
+                    }
+
+                } else if (valid1 &&
+                           (packet1[33] == 1'b1)) {
+
+                    set owner1 := 1'b1;
+                    set lock1 := 1'b1;
+
+                    send out1.beat(packet1);
+
+                    if (packet1[32]) {
+
+                        set valid1 := 1'b0;
+                        set lock1 := 1'b0;
+
+                        set rr1 := 1'b0;
+
+                    } else {
+
+                        set valid1 := 1'b0;
+
+                    }
+                }
+
+            } else {
+
+                if (valid1 &&
+                    (packet1[33] == 1'b1)) {
+
+                    set owner1 := 1'b1;
+                    set lock1 := 1'b1;
+
+                    send out1.beat(packet1);
+
+                    if (packet1[32]) {
+
+                        set valid1 := 1'b0;
+                        set lock1 := 1'b0;
+
+                        set rr1 := 1'b0;
+
+                    } else {
+
+                        set valid1 := 1'b0;
+
+                    }
+
+                } else if (valid0 &&
+                           (packet0[33] == 1'b1)) {
+
+                    set owner1 := 1'b0;
+                    set lock1 := 1'b1;
+
+                    send out1.beat(packet0);
+
+                    if (packet0[32]) {
+
+                        set valid0 := 1'b0;
+                        set lock1 := 1'b0;
+
+                        set rr1 := 1'b1;
+
+                    } else {
+
+                        set valid0 := 1'b0;
+
+                    }
+                }
+            }
+        }
+
+
+        /*
+         * One cycle between iterations.
+         */
+        cycle 1
+    }
+}
+
+
+proc router() {
+
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out0_le -- out0_ri : output_chan;
+    chan out1_le -- out1_ri : output_chan;
+
+
+    spawn router_core(
+        in0_ri,
+        in1_ri,
+        out0_le,
+        out1_le
+    );
+
+
+    loop {
+
+        cycle 1
+
+    }
+}
