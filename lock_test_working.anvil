@@ -1,0 +1,77 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/* ============================================================
+ * PACKET LOCK TEST
+ *
+ * lock = 0 -> output is free
+ * lock = 1 -> output is locked
+ *
+ * owner records which input owns the packet.
+ * ============================================================ */
+
+proc packet_lock(
+    out : left output_chan
+) {
+    reg lock : logic;
+    reg owner : logic;
+    reg winner : logic;
+    reg last : logic;
+
+    loop {
+
+        /*
+         * Test input 0 as the selected owner.
+         */
+        set winner := 1'b0;
+
+        /*
+         * Test a non-final packet beat.
+         */
+        set last := 1'b0;
+
+        /*
+         * For this compiler test, lock follows the
+         * non-final-beat condition.
+         */
+        let next_lock = if *last == 1'b0 {
+            1'b1
+        } else {
+            1'b0
+        } >>
+
+        set lock := next_lock;
+
+        /*
+         * Owner follows the selected winner.
+         */
+        set owner := *winner;
+
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * TOP LEVEL
+ * ============================================================ */
+
+proc router() {
+
+    chan out_le -- out_ri : output_chan;
+
+    spawn packet_lock(
+        out_le
+    );
+
+    loop {
+        cycle 1
+    }
+}
+

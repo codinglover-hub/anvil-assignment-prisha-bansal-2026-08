@@ -1,0 +1,404 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/* ============================================================
+ * INPUT 0
+ * Stores incoming packet beat and extracts destination/TLAST.
+ * ============================================================ */
+
+proc input0_route(
+    inp : right input_chan,
+    out0 : left output_chan,
+    out1 : left output_chan
+) {
+    reg packet : logic[34];
+    reg valid : logic;
+    reg dest : logic;
+    reg last : logic;
+
+    loop {
+        try b = recv inp.beat {
+            set packet := b;
+            set valid := 1'b1;
+            set dest := b[1];
+            set last := b[0];
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        if *valid == 1'b1 {
+            if *dest == 1'b0 {
+                send out0.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            } else {
+                send out1.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            }
+        } else {
+            cycle 1
+        }
+    }
+}
+
+
+/* ============================================================
+ * INPUT 1
+ * ============================================================ */
+
+proc input1_route(
+    inp : right input_chan,
+    out0 : left output_chan,
+    out1 : left output_chan
+) {
+    reg packet : logic[34];
+    reg valid : logic;
+    reg dest : logic;
+    reg last : logic;
+
+    loop {
+        try b = recv inp.beat {
+            set packet := b;
+            set valid := 1'b1;
+            set dest := b[1];
+            set last := b[0];
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        if *valid == 1'b1 {
+            if *dest == 1'b0 {
+                send out0.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            } else {
+                send out1.beat(*packet) >>
+                set valid := 1'b0;
+                cycle 1
+            }
+        } else {
+            cycle 1
+        }
+    }
+}
+
+
+/* ============================================================
+ * OUTPUT 0
+ *
+ * RR + packet locking.
+ * ============================================================ */
+
+proc output0(
+    inp0 : right input_chan,
+    inp1 : right input_chan,
+    out0 : left output_chan
+) {
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic;
+    reg valid1 : logic;
+
+    reg last0 : logic;
+    reg last1 : logic;
+
+    reg rr : logic;
+    reg lock : logic;
+    reg owner : logic;
+    reg winner : logic;
+
+    loop {
+
+        /* Receive pending beat from input 0 */
+        try b0 = recv inp0.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            set last0 := b0[0];
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* Receive pending beat from input 1 */
+        try b1 = recv inp1.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            set last1 := b1[0];
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* Select owner */
+        let selected = if *lock == 1'b1 {
+            *owner
+        } else {
+            if *valid0 == 1'b1 {
+                if *valid1 == 1'b1 {
+                    if *rr == 1'b0 {
+                        1'b0
+                    } else {
+                        1'b1
+                    }
+                } else {
+                    1'b0
+                }
+            } else {
+                if *valid1 == 1'b1 {
+                    1'b1
+                } else {
+                    1'b0
+                }
+            }
+        } >>
+
+        set winner := selected;
+
+        /* Send selected beat */
+        if *winner == 1'b0 {
+            if *valid0 == 1'b1 {
+                send out0.beat(*packet0) >>
+                set valid0 := 1'b0;
+                cycle 1
+            } else {
+                cycle 1
+            }
+        } else {
+            if *valid1 == 1'b1 {
+                send out0.beat(*packet1) >>
+                set valid1 := 1'b0;
+                cycle 1
+            } else {
+                cycle 1
+            }
+        } >>
+
+        /* Packet locking */
+        let next_lock = if *winner == 1'b0 {
+            if *last0 == 1'b0 {
+                1'b1
+            } else {
+                1'b0
+            }
+        } else {
+            if *last1 == 1'b0 {
+                1'b1
+            } else {
+                1'b0
+            }
+        } >>
+
+        set lock := next_lock;
+
+        let next_owner = if *winner == 1'b0 {
+            1'b0
+        } else {
+            1'b1
+        } >>
+
+        set owner := next_owner;
+
+        /* RR changes after a completed packet */
+        let next_rr = if *winner == 1'b0 {
+            if *last0 == 1'b1 {
+                1'b1
+            } else {
+                *rr
+            }
+        } else {
+            if *last1 == 1'b1 {
+                1'b0
+            } else {
+                *rr
+            }
+        } >>
+
+        set rr := next_rr;
+
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * OUTPUT 1
+ *
+ * Same arbitration/locking structure as output 0.
+ * ============================================================ */
+
+proc output1(
+    inp0 : right input_chan,
+    inp1 : right input_chan,
+    out1 : left output_chan
+) {
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic;
+    reg valid1 : logic;
+
+    reg last0 : logic;
+    reg last1 : logic;
+
+    reg rr : logic;
+    reg lock : logic;
+    reg owner : logic;
+    reg winner : logic;
+
+    loop {
+
+        try b0 = recv inp0.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            set last0 := b0[0];
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        try b1 = recv inp1.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            set last1 := b1[0];
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        let selected = if *lock == 1'b1 {
+            *owner
+        } else {
+            if *valid0 == 1'b1 {
+                if *valid1 == 1'b1 {
+                    if *rr == 1'b0 {
+                        1'b0
+                    } else {
+                        1'b1
+                    }
+                } else {
+                    1'b0
+                }
+            } else {
+                if *valid1 == 1'b1 {
+                    1'b1
+                } else {
+                    1'b0
+                }
+            }
+        } >>
+
+        set winner := selected;
+
+        if *winner == 1'b0 {
+            if *valid0 == 1'b1 {
+                send out1.beat(*packet0) >>
+                set valid0 := 1'b0;
+                cycle 1
+            } else {
+                cycle 1
+            }
+        } else {
+            if *valid1 == 1'b1 {
+                send out1.beat(*packet1) >>
+                set valid1 := 1'b0;
+                cycle 1
+            } else {
+                cycle 1
+            }
+        } >>
+
+        let next_lock = if *winner == 1'b0 {
+            if *last0 == 1'b0 {
+                1'b1
+            } else {
+                1'b0
+            }
+        } else {
+            if *last1 == 1'b0 {
+                1'b1
+            } else {
+                1'b0
+            }
+        } >>
+
+        set lock := next_lock;
+
+        let next_owner = if *winner == 1'b0 {
+            1'b0
+        } else {
+            1'b1
+        } >>
+
+        set owner := next_owner;
+
+        let next_rr = if *winner == 1'b0 {
+            if *last0 == 1'b1 {
+                1'b1
+            } else {
+                *rr
+            }
+        } else {
+            if *last1 == 1'b1 {
+                1'b0
+            } else {
+                *rr
+            }
+        } >>
+
+        set rr := next_rr;
+
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * TOP LEVEL
+ * ============================================================ */
+
+proc router() {
+
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out0_le -- out0_ri : output_chan;
+    chan out1_le -- out1_ri : output_chan;
+
+    spawn input0_route(
+        in0_ri,
+        out0_le,
+        out1_le
+    );
+
+    spawn input1_route(
+        in1_ri,
+        out0_le,
+        out1_le
+    );
+
+    spawn output0(
+        out0_ri,
+        out0_ri,
+        out0_le
+    );
+
+    spawn output1(
+        out1_ri,
+        out1_ri,
+        out1_le
+    );
+
+    loop {
+        cycle 1
+    }
+}

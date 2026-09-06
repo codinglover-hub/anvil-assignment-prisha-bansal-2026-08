@@ -1,0 +1,114 @@
+chan input_chan {
+    right beat : (logic[34]@#1)
+}
+
+chan output_chan {
+    right beat : (logic[34]@#1)
+}
+
+
+/* ============================================================
+ * OUTPUT 0
+ *
+ * Input 0 and Input 1 can send to Output 0.
+ *
+ * RR = 0 -> Input 0 wins when both request
+ * RR = 1 -> Input 1 wins when both request
+ * ============================================================ */
+
+proc output0(
+    inp0 : right input_chan,
+    inp1 : right input_chan,
+    out0 : left output_chan
+) {
+    reg packet0 : logic[34];
+    reg packet1 : logic[34];
+
+    reg valid0 : logic;
+    reg valid1 : logic;
+
+    reg rr : logic;
+    reg winner : logic;
+
+    loop {
+
+        /* Receive Input 0 */
+        try b0 = recv inp0.beat {
+            set packet0 := b0;
+            set valid0 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /* Receive Input 1 */
+        try b1 = recv inp1.beat {
+            set packet1 := b1;
+            set valid1 := 1'b1;
+            cycle 1
+        } else {
+            cycle 1
+        } >>
+
+        /*
+         * Arbitration.
+         */
+        let selected = if *valid0 == 1'b1 {
+            if *valid1 == 1'b1 {
+                if *rr == 1'b0 {
+                    1'b0
+                } else {
+                    1'b1
+                }
+            } else {
+                1'b0
+            }
+        } else {
+            if *valid1 == 1'b1 {
+                1'b1
+            } else {
+                1'b0
+            }
+        } >>
+
+        set winner := selected;
+
+        /*
+         * RR update.
+         *
+         * Use an expression instead of a statement-style if.
+         */
+        let updated_rr = if *winner == 1'b0 {
+            1'b1
+        } else {
+            1'b0
+        } >>
+
+        set rr := updated_rr;
+
+        cycle 1
+    }
+}
+
+
+/* ============================================================
+ * TOP LEVEL
+ * ============================================================ */
+
+proc router() {
+
+    chan in0_le -- in0_ri : input_chan;
+    chan in1_le -- in1_ri : input_chan;
+
+    chan out0_le -- out0_ri : output_chan;
+
+    spawn output0(
+        in0_ri,
+        in1_ri,
+        out0_le
+    );
+
+    loop {
+        cycle 1
+    }
+}
