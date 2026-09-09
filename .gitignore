@@ -1,0 +1,38 @@
+
+# Debug and experimental files
+debug/
+router_*backup.anvil
+router_*_backup.anvil
+router_BASELINE_VALID.anvil
+router_BEFORE_*.anvil
+router_anvil_before_*.anvil
+router_before_*.anvil
+router_current_backup.anvil
+router_working_*.anvil
+router_generated_working_*.sv
+router_equiv_generated.sv
+router_old.anvil
+router_equiv.anvil
+router_routed_arbitrated_backup.anvil
+router_rr_working.anvil
+
+# Generated simulation files
+obj_dir/
+*.vcd
+parta_sim
+partb_sim
+partc_sim
+anvil_sim
+equivalence_sim
+
+# Debug / experimental files
+debug/
+arbiter_test*.anvil
+lock_test*.anvil
+packet_test*.anvil
+router_2x2_test.anvil
+router_before_*.anvil
+router_c*.anvil
+equivalence_sim
+obj_dir/
+*.vcd
