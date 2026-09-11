@@ -1,0 +1,231 @@
+========================================
+FINAL BUILD TRANSCRIPT
+========================================
+
+Anvil:
+/Users/prishabansal/.opam/5.2.0/bin/anvil
+<><> anvil: information on all versions <><><><><><><><><><><><><><><><><><>  🐫 
+all-installed-versions 0.1.0 [5.2.0]
+all-versions           0.1.0
+version     0.1.0
+pin         git+file:///Users/prishabansal/src/anvil#HEAD
+source-hash d138cabedbfc3b65c08249ce6a55cb90dad959da
+
+Verilator:
+Verilator 5.050 2026-07-01 rev vUNKNOWN-built20260701
+
+========================================
+ANVIL CHECK
+========================================
+
+========================================
+ANVIL GENERATION
+========================================
+
+========================================
+VERILATOR LINT
+========================================
+- V e r i l a t i o n   R e p o r t: Verilator 5.050 2026-07-01 rev vUNKNOWN-built20260701
+- Verilator: Built from 0.084 MB sources in 6 modules, into 0.105 MB in 3 C++ files needing 0.000 MB
+- Verilator: Walltime 0.028 s (elab=0.007, cvt=0.011, bld=0.000); cpu 0.020 s on 1 threads; allocated 14.969 MB
+
+========================================
+PART A
+========================================
+VCD info: dumpfile router.vcd opened for output.
+
+================================================
+TEST 1: INPUT 0 -> OUTPUT 0
+================================================
+PASS: Input 0 correctly transferred to Output 0
+PASS: Output 1 remains inactive
+
+================================================
+TEST 2: INPUT 1 -> OUTPUT 1
+================================================
+PASS: Input 1 correctly transferred to Output 1
+PASS: Output 0 remains inactive
+
+================================================
+TEST 3: CONCURRENT TRAFFIC
+================================================
+PASS: Input 0 transferred to Output 0 concurrently
+PASS: Input 1 transferred to Output 1 concurrently
+
+================================================
+TEST 4: CONTENTION / ROUND-ROBIN
+================================================
+PASS: First contention selects Input 0
+PASS: Input 1 transfers after Input 0 completes
+PASS: Second contention selects Input 1
+
+================================================
+TEST 5: BACKPRESSURE
+================================================
+PASS: Backpressure reaches Input 0 and holds valid data
+PASS: Output payload remains stable during stall
+PASS: Held packet transfers after Output 0 becomes ready
+
+================================================
+TEST 6: MULTI-BEAT PACKET LOCKING
+================================================
+PASS: Input 0 packet beat 1 transfers
+PASS: Lock keeps Output 0 assigned to Input 0 for beat 2
+PASS: Input 1 is blocked while Input 0 packet is locked
+PASS: Input 0 final packet beat transfers
+PASS: Input 1 transfers only after Input 0 packet completes
+
+================================================
+TEST SUMMARY
+================================================
+PASS COUNT: 17
+FAIL COUNT: 0
+RESULT: ALL TESTS PASSED
+tb_router.sv:601: $finish called at 240000 (1ps)
+
+========================================
+PART B
+========================================
+TEST 1: INPUT 0 -> OUTPUT 0
+PASS: t 0 correctly routed to Output 0
+TEST 2: INPUT 1 -> OUTPUT 1
+PASS: t 1 correctly routed to Output 1
+TEST 3: CONCURRENT TRAFFIC
+PASS: sferred to Output 0 concurrently
+PASS: sferred to Output 1 concurrently
+TEST 4: CONTENTION / ROUND-ROBIN
+PASS: First contention selects Input 0
+PASS: ransfers after Input 0 completes
+TEST 5: BACKPRESSURE
+PASS: presents data while READY is low
+PASS: ained stable during backpressure
+PASS: transfers when READY is asserted
+TEST 6: MULTI-BEAT PACKET LOCKING
+PASS: Input 0 packet beat 1 selected
+PASS: lock keeps Output 0 with Input 0
+PASS: s after Input 0 packet completes
+TEST 7: OUTPUT 0 STABILITY
+PASS: Output 0 data remains stable
+TEST 8: OUTPUT 1 STABILITY
+PASS: Output 1 data remains stable
+TEST 9: OUTPUT 0 TLAST
+PASS: put 0 correctly propagates TLAST
+TEST 10: OUTPUT 1 TLAST
+PASS: put 1 correctly propagates TLAST
+TEST 11: RESET BEHAVIOUR
+FAIL: tputs became active during reset
+TEST 12: MIXED TRAFFIC
+PASS: xed traffic reaches both outputs
+TEST 13: ROUND-ROBIN FAIRNESS - OUTPUT 0
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention has a valid winner
+PASS:  0 contention sequence completed
+TEST 14: ROUND-ROBIN FAIRNESS - OUTPUT 1
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention has a valid winner
+PASS:  1 contention sequence completed
+
+==============================================================
+
+                    TESTBENCH SUMMARY
+
+==============================================================
+
+Tests executed : 14
+PASS count     : 35
+FAIL count     : 1
+
+TESTBENCH RESULT : FAILURES DETECTED
+
+==============================================================
+
+tb_router_sva.sv:1053: $finish called at 1047000 (1ps)
+ROUTER CHECKER RESULT
+CORE CHECKS : PASS
+P6B FAIRNESS RESULTS
+Output 0 / Input 0 contention wins : 0
+Output 0 / Input 1 contention wins : 0
+Output 1 / Input 0 contention wins : 4
+Output 1 / Input 1 contention wins : 4
+
+Output 0 fairness : NOT DEMONSTRATED
+Output 1 fairness : PASS
+RESULT : PASS
+============================================================
+
+========================================
+PART C
+========================================
+
+====================================================
+ PART C
+ ANVIL vs SYSTEMVERILOG
+====================================================
+
+TEST 1: Basic routing
+
+TEST 2: Multi-beat packet Output0
+
+TEST 3: Multi-beat packet Output1
+
+TEST 4: RR Method 1 - Output0
+
+TEST 5: RR Method 2 - Output0
+
+TEST 6: RR Method 1 - Output1
+
+TEST 7: RR Method 2 - Output1
+
+TEST 8: Backpressure Output0
+
+TEST 9: Backpressure Output1
+
+TEST 10: Packet locking Output0
+
+TEST 11: Packet locking Output1
+
+Checking Output 0
+SV beats    : 14
+Anvil beats : 14
+ERROR OUT0 beat 4 DATA SV=e0000001 ANVIL=e0000002
+ERROR OUT0 beat 5 DATA SV=e0000002 ANVIL=e0000001
+
+Checking Output 1
+SV beats    : 14
+Anvil beats : 14
+
+====================================================
+ FINAL PART C RESULT
+====================================================
+Cycles simulated : 305
+
+OUTPUT 0
+SV beats         : 14
+Anvil beats      : 14
+
+OUTPUT 1
+SV beats         : 14
+Anvil beats      : 14
+
+Errors           : 2
+====================================================
+
+FAIL: FUNCTIONAL DIFFERENCES FOUND
+
+tb_partc.sv:926: $finish called at 3085000 (1ps)
+
+========================================
+FINAL BUILD COMPLETE
+========================================

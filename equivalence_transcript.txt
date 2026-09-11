@@ -1,0 +1,171 @@
+
+==========================================
+TEST 1: BASIC ROUTING
+==========================================
+
+==========================================
+RESET COMPLETE
+==========================================
+SV   OUT0 data=a0000001 last=1
+INPUT0 SENT data=a0000001 dest=0 last=1
+SV   OUT1 data=a0000002 last=1
+ANV  OUT0 data=a0000001 last=1
+INPUT1 SENT data=a0000002 dest=1 last=1
+ANV  OUT1 data=a0000002 last=1
+
+------------------------------------------
+OUTPUT 0 COMPARISON
+------------------------------------------
+SV COUNT    = 1
+ANVIL COUNT = 1
+PASS OUT0 COUNT
+PASS OUT0[0] = a0000001
+
+------------------------------------------
+OUTPUT 1 COMPARISON
+------------------------------------------
+SV COUNT    = 1
+ANVIL COUNT = 1
+PASS OUT1 COUNT
+PASS OUT1[0] = a0000002
+
+==========================================
+TEST 2: CONCURRENT TRAFFIC
+==========================================
+
+==========================================
+RESET COMPLETE
+==========================================
+SV   OUT0 data=b0000001 last=1
+SV   OUT1 data=b0000011 last=1
+CONCURRENT SENT I0=b0000001 I1=b0000011
+ANV  OUT0 data=b0000001 last=1
+ANV  OUT1 data=b0000011 last=1
+
+------------------------------------------
+OUTPUT 0 COMPARISON
+------------------------------------------
+SV COUNT    = 1
+ANVIL COUNT = 1
+PASS OUT0 COUNT
+PASS OUT0[0] = b0000001
+
+------------------------------------------
+OUTPUT 1 COMPARISON
+------------------------------------------
+SV COUNT    = 1
+ANVIL COUNT = 1
+PASS OUT1 COUNT
+PASS OUT1[0] = b0000011
+
+==========================================
+TEST 3: OUTPUT 0 ROUND ROBIN
+==========================================
+
+==========================================
+RESET COMPLETE
+==========================================
+SV   OUT0 data=c0000000 last=1
+CONCURRENT SENT I0=c0000000 I1=c0000010
+ANV  OUT0 data=c0000000 last=1
+SV   OUT0 data=c0000001 last=1
+CONCURRENT SENT I0=c0000001 I1=c0000011
+ANV  OUT0 data=c0000001 last=1
+SV   OUT0 data=c0000002 last=1
+CONCURRENT SENT I0=c0000002 I1=c0000012
+ANV  OUT0 data=c0000002 last=1
+SV   OUT0 data=c0000003 last=1
+CONCURRENT SENT I0=c0000003 I1=c0000013
+ANV  OUT0 data=c0000003 last=1
+
+------------------------------------------
+OUTPUT 0 COMPARISON
+------------------------------------------
+SV COUNT    = 4
+ANVIL COUNT = 4
+PASS OUT0 COUNT
+PASS OUT0[0] = c0000000
+PASS OUT0[1] = c0000001
+PASS OUT0[2] = c0000002
+PASS OUT0[3] = c0000003
+
+==========================================
+TEST 4: OUTPUT 1 ROUND ROBIN
+==========================================
+
+==========================================
+RESET COMPLETE
+==========================================
+SV   OUT1 data=d0000000 last=1
+CONCURRENT SENT I0=d0000000 I1=d0000010
+ANV  OUT1 data=d0000000 last=1
+SV   OUT1 data=d0000001 last=1
+CONCURRENT SENT I0=d0000001 I1=d0000011
+ANV  OUT1 data=d0000001 last=1
+SV   OUT1 data=d0000002 last=1
+CONCURRENT SENT I0=d0000002 I1=d0000012
+ANV  OUT1 data=d0000002 last=1
+SV   OUT1 data=d0000003 last=1
+CONCURRENT SENT I0=d0000003 I1=d0000013
+ANV  OUT1 data=d0000003 last=1
+
+------------------------------------------
+OUTPUT 1 COMPARISON
+------------------------------------------
+SV COUNT    = 4
+ANVIL COUNT = 4
+PASS OUT1 COUNT
+PASS OUT1[0] = d0000000
+PASS OUT1[1] = d0000001
+PASS OUT1[2] = d0000002
+PASS OUT1[3] = d0000003
+
+==========================================
+TEST 5: BACKPRESSURE
+==========================================
+
+==========================================
+RESET COMPLETE
+==========================================
+SV BACKPRESSURE DATA=e0000001
+ANVIL BACKPRESSURE DATA=e0000001
+PASS SV OUTPUT VALID UNDER BACKPRESSURE
+PASS ANVIL OUTPUT VALID UNDER BACKPRESSURE
+SV   OUT0 data=e0000001 last=1
+ANV  OUT0 data=e0000001 last=1
+ANV  OUT0 data=e0000001 last=1
+PASS SV BACKPRESSURE RELEASE
+FAIL ANVIL RELEASE COUNT=2
+
+==========================================
+TEST 6: MULTI-BEAT PACKET LOCKING
+==========================================
+
+==========================================
+RESET COMPLETE
+==========================================
+SV   OUT0 data=bbbb0001 last=0
+INPUT0 SENT data=bbbb0001 dest=0 last=0
+SV   OUT0 data=bbbb0002 last=1
+ANV  OUT0 data=bbbb0001 last=0
+CONCURRENT SENT I0=bbbb0002 I1=cccc0001
+ANV  OUT0 data=bbbb0002 last=1
+
+------------------------------------------
+OUTPUT 0 COMPARISON
+------------------------------------------
+SV COUNT    = 2
+ANVIL COUNT = 2
+PASS OUT0 COUNT
+PASS OUT0[0] = bbbb0001
+PASS OUT0[1] = bbbb0002
+
+==========================================
+FINAL RESULT
+==========================================
+Cycles checked : 243
+Total errors   : 1
+
+FAIL: 1 ERRORS FOUND
+
+tb_equivalence.sv:1695: $finish called at 2785000 (1ps)

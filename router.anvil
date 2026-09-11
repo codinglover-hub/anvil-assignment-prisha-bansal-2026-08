@@ -10,6 +10,19 @@
 //   [32]     = TDEST
 //   [31:0]   = TDATA
 //
+// Arbitration:
+//
+//   rr = 0 -> Input 0 has priority
+//   rr = 1 -> Input 1 has priority
+//
+// RR is updated ONLY after a successful TLAST transfer
+// when both inputs were contending.
+//
+// Packet locking:
+//
+//   A packet whose TLAST = 0 locks the output to its owner.
+//   The lock is released only after TLAST transfers.
+//
 // ============================================================
 
 
@@ -35,14 +48,13 @@ chan route_ch {
 // INPUT 0 ROUTER
 // ============================================================
 //
-// Receives one beat from input 0.
+// Receives beats from Input 0 and routes them according to TDEST.
 //
-// TDEST = 0 -> route to output 0
-// TDEST = 1 -> route to output 1
+// TDEST = 0 -> Output 0
+// TDEST = 1 -> Output 1
 //
-// A one-entry register is used so that the received beat remains
-// stable until it is successfully sent to the selected route.
-//
+// A one-entry buffer keeps the beat stable until it is sent
+// to the selected output channel.
 // ============================================================
 
 proc input0_router(
@@ -56,6 +68,10 @@ proc input0_router(
     reg valid0  : logic;
 
     loop {
+
+        // --------------------------------------------------------
+        // Receive a new beat if the local buffer is empty
+        // --------------------------------------------------------
 
         if *valid0 == 1'b0 {
 
@@ -78,6 +94,10 @@ proc input0_router(
         }
 
         else {
+
+            // ----------------------------------------------------
+            // Forward buffered beat
+            // ----------------------------------------------------
 
             if *dest0 == 1'b0 {
 
@@ -115,6 +135,10 @@ proc input1_router(
 
     loop {
 
+        // --------------------------------------------------------
+        // Receive a new beat if the local buffer is empty
+        // --------------------------------------------------------
+
         if *valid1 == 1'b0 {
 
             try b = recv in1.beat {
@@ -136,6 +160,10 @@ proc input1_router(
         }
 
         else {
+
+            // ----------------------------------------------------
+            // Forward buffered beat
+            // ----------------------------------------------------
 
             if *dest1 == 1'b0 {
 
@@ -161,37 +189,26 @@ proc input1_router(
 // OUTPUT 0 ARBITER
 // ============================================================
 //
-// Input requests:
-//
-//   valid0 -> Input 0 currently has a beat for Output 0
-//   valid1 -> Input 1 currently has a beat for Output 0
+// Input 0 and Input 1 may both request Output 0.
 //
 // Arbitration:
 //
 //   both valid:
-//
 //       rr0 = 0 -> Input 0 wins
 //       rr0 = 1 -> Input 1 wins
 //
-//   After contention:
-//
-//       winner 0 -> rr0 becomes 1
-//       winner 1 -> rr0 becomes 0
-//
-//   If there is no contention, rr0 is unchanged.
+//   only one valid:
+//       that input wins
 //
 // Packet locking:
 //
-//   If selected beat has TLAST = 0:
+//   TLAST = 0 -> lock output to current owner
+//   TLAST = 1 -> release lock
 //
-//       lock0 = 1
+// RR:
 //
-//   The same owner continues to receive the following beats.
-//
-//   When TLAST = 1:
-//
-//       lock0 = 0
-//
+//   RR changes only after TLAST and only if both inputs
+//   were contending for this output.
 // ============================================================
 
 proc output0_arbiter(
@@ -212,9 +229,9 @@ proc output0_arbiter(
 
     loop {
 
-        // --------------------------------------------------------
-        // Fill Input 0 buffer
-        // --------------------------------------------------------
+        // ========================================================
+        // FILL INPUT 0 BUFFER
+        // ========================================================
 
         (if *valid0 == 1'b0 {
 
@@ -242,9 +259,9 @@ proc output0_arbiter(
         cycle 1 >>
 
 
-        // --------------------------------------------------------
-        // Fill Input 1 buffer
-        // --------------------------------------------------------
+        // ========================================================
+        // FILL INPUT 1 BUFFER
+        // ========================================================
 
         (if *valid1 == 1'b0 {
 
@@ -270,185 +287,276 @@ proc output0_arbiter(
         }) >>
 
 
-        // --------------------------------------------------------
-        // Arbitration
-        // --------------------------------------------------------
+        // ========================================================
+        // ARBITRATION
+        // ========================================================
 
-        (if *lock0 == 1'b1 {
+        (
+            if *lock0 == 1'b1 {
 
-            // ====================================================
-            // PACKET LOCK ACTIVE
-            // ====================================================
+                // =================================================
+                // PACKET LOCK ACTIVE
+                // =================================================
 
-            if *owner0 == 1'b0 {
+                if *owner0 == 1'b0 {
 
-                if *valid0 == 1'b1 {
+                    // ------------------------------------------------
+                    // Input 0 owns Output 0
+                    // ------------------------------------------------
+
+                    if *valid0 == 1'b1 {
+
+                        send out0.beat(*packet0) >>
+
+                        if (*packet0)[33] == 1'b1 {
+
+                            // ----------------------------------------
+                            // TLAST transferred.
+                            // Release lock.
+                            //
+                            // If Input 1 was also waiting, Input 1
+                            // becomes the next RR priority.
+                            // ----------------------------------------
+
+                            if *valid1 == 1'b1 {
+
+                                {
+                                    set valid0 := 1'b0;
+                                    set lock0 := 1'b0;
+                                    set rr0 := 1'b1
+                                }
+
+                            } else {
+
+                                {
+                                    set valid0 := 1'b0;
+                                    set lock0 := 1'b0
+                                }
+                            }
+
+                        } else {
+
+                            // ----------------------------------------
+                            // Packet continues.
+                            // Keep lock and RR unchanged.
+                            // ----------------------------------------
+
+                            set valid0 := 1'b0
+
+                        }
+
+                    } else {
+
+                        cycle 1
+
+                    }
+
+                } else {
+
+                    // ------------------------------------------------
+                    // Input 1 owns Output 0
+                    // ------------------------------------------------
+
+                    if *valid1 == 1'b1 {
+
+                        send out0.beat(*packet1) >>
+
+                        if (*packet1)[33] == 1'b1 {
+
+                            // ----------------------------------------
+                            // TLAST transferred.
+                            // Release lock.
+                            //
+                            // If Input 0 was also waiting, Input 0
+                            // becomes the next RR priority.
+                            // ----------------------------------------
+
+                            if *valid0 == 1'b1 {
+
+                                {
+                                    set valid1 := 1'b0;
+                                    set lock0 := 1'b0;
+                                    set rr0 := 1'b0
+                                }
+
+                            } else {
+
+                                {
+                                    set valid1 := 1'b0;
+                                    set lock0 := 1'b0
+                                }
+                            }
+
+                        } else {
+
+                            // ----------------------------------------
+                            // Packet continues.
+                            // Keep lock and RR unchanged.
+                            // ----------------------------------------
+
+                            set valid1 := 1'b0
+
+                        }
+
+                    } else {
+
+                        cycle 1
+
+                    }
+                }
+            }
+
+            else {
+
+                // =================================================
+                // NO PACKET LOCK
+                // =================================================
+
+                if ((*valid0 == 1'b1) & (*valid1 == 1'b1)) {
+
+                    // =================================================
+                    // CONTENTION
+                    // =================================================
+
+                    if *rr0 == 1'b0 {
+
+                        // ---------------------------------------------
+                        // Input 0 wins
+                        // ---------------------------------------------
+
+                        send out0.beat(*packet0) >>
+
+                        if (*packet0)[33] == 1'b1 {
+
+                            // -----------------------------------------
+                            // TLAST transferred.
+                            //
+                            // Contention existed, so flip RR.
+                            // -----------------------------------------
+
+                            {
+                                set valid0 := 1'b0;
+                                set rr0 := 1'b1
+                            }
+
+                        } else {
+
+                            // -----------------------------------------
+                            // Packet continues.
+                            // Lock to Input 0.
+                            // RR must NOT change yet.
+                            // -----------------------------------------
+
+                            {
+                                set valid0 := 1'b0;
+                                set lock0 := 1'b1;
+                                set owner0 := 1'b0
+                            }
+                        }
+
+                    } else {
+
+                        // ---------------------------------------------
+                        // Input 1 wins
+                        // ---------------------------------------------
+
+                        send out0.beat(*packet1) >>
+
+                        if (*packet1)[33] == 1'b1 {
+
+                            // -----------------------------------------
+                            // TLAST transferred.
+                            //
+                            // Contention existed, so flip RR.
+                            // -----------------------------------------
+
+                            {
+                                set valid1 := 1'b0;
+                                set rr0 := 1'b0
+                            }
+
+                        } else {
+
+                            // -----------------------------------------
+                            // Packet continues.
+                            // Lock to Input 1.
+                            // RR must NOT change yet.
+                            // -----------------------------------------
+
+                            {
+                                set valid1 := 1'b0;
+                                set lock0 := 1'b1;
+                                set owner0 := 1'b1
+                            }
+                        }
+                    }
+                }
+
+                else if *valid0 == 1'b1 {
+
+                    // =================================================
+                    // ONLY INPUT 0
+                    // =================================================
 
                     send out0.beat(*packet0) >>
 
                     if (*packet0)[33] == 1'b1 {
 
-                        {
-                            set valid0 := 1'b0;
-                            set lock0 := 1'b0
-                        }
-
-                    } else {
+                        // Single requester.
+                        // RR remains unchanged.
 
                         set valid0 := 1'b0
 
+                    } else {
+
+                        // Packet continues.
+                        // Lock to Input 0.
+
+                        {
+                            set valid0 := 1'b0;
+                            set lock0 := 1'b1;
+                            set owner0 := 1'b0
+                        }
                     }
-
-                } else {
-
-                    cycle 1
 
                 }
 
-            } else {
+                else if *valid1 == 1'b1 {
 
-                if *valid1 == 1'b1 {
+                    // =================================================
+                    // ONLY INPUT 1
+                    // =================================================
 
                     send out0.beat(*packet1) >>
 
                     if (*packet1)[33] == 1'b1 {
 
+                        // Single requester.
+                        // RR remains unchanged.
+
+                        set valid1 := 1'b0
+
+                    } else {
+
+                        // Packet continues.
+                        // Lock to Input 1.
+
                         {
                             set valid1 := 1'b0;
-                            set lock0 := 1'b0
-                        }
-
-                    } else {
-
-                        set valid1 := 1'b0
-
-                    }
-
-                } else {
-
-                    cycle 1
-
-                }
-            }
-
-        }
-
-        else {
-
-            // ====================================================
-            // NO PACKET LOCK
-            // ====================================================
-
-            if ((*valid0 == 1'b1) & (*valid1 == 1'b1)) {
-
-                // ------------------------------------------------
-                // CONTENTION
-                // ------------------------------------------------
-
-                if *rr0 == 1'b0 {
-
-                    // Input 0 wins
-
-                    send out0.beat(*packet0) >>
-
-                    {
-                        set rr0 := 1'b1;
-                        set valid0 := 1'b0
-                    } >>
-
-                    if (*packet0)[33] == 1'b0 {
-
-                        {
-                            set lock0 := 1'b1;
-                            set owner0 := 1'b0
-                        }
-
-                    } else {
-
-                        cycle 1
-
-                    }
-
-                } else {
-
-                    // Input 1 wins
-
-                    send out0.beat(*packet1) >>
-
-                    {
-                        set rr0 := 1'b0;
-                        set valid1 := 1'b0
-                    } >>
-
-                    if (*packet1)[33] == 1'b0 {
-
-                        {
                             set lock0 := 1'b1;
                             set owner0 := 1'b1
                         }
-
-                    } else {
-
-                        cycle 1
-
                     }
+
                 }
-            }
 
-            else if *valid0 == 1'b1 {
-
-                // ------------------------------------------------
-                // ONLY INPUT 0
-                // ------------------------------------------------
-
-                send out0.beat(*packet0) >>
-                set valid0 := 1'b0 >>
-
-                if (*packet0)[33] == 1'b0 {
-
-                    {
-                        set lock0 := 1'b1;
-                        set owner0 := 1'b0
-                    }
-
-                } else {
+                else {
 
                     cycle 1
 
                 }
-
             }
-
-            else if *valid1 == 1'b1 {
-
-                // ------------------------------------------------
-                // ONLY INPUT 1
-                // ------------------------------------------------
-
-                send out0.beat(*packet1) >>
-                set valid1 := 1'b0 >>
-
-                if (*packet1)[33] == 1'b0 {
-
-                    {
-                        set lock0 := 1'b1;
-                        set owner0 := 1'b1
-                    }
-
-                } else {
-
-                    cycle 1
-
-                }
-
-            }
-
-            else {
-
-                cycle 1
-
-            }
-        })
+        )
     }
 }
 
@@ -457,11 +565,12 @@ proc output0_arbiter(
 // OUTPUT 1 ARBITER
 // ============================================================
 //
-// Same arbitration structure as Output 0.
+// Same behavior as Output 0.
 //
 // rr1 = 0 -> Input 0 wins contention
 // rr1 = 1 -> Input 1 wins contention
 //
+// RR changes only after TLAST on a contended transfer.
 // ============================================================
 
 proc output1_arbiter(
@@ -482,9 +591,9 @@ proc output1_arbiter(
 
     loop {
 
-        // --------------------------------------------------------
-        // Fill Input 0 buffer
-        // --------------------------------------------------------
+        // ========================================================
+        // FILL INPUT 0 BUFFER
+        // ========================================================
 
         (if *valid0 == 1'b0 {
 
@@ -510,9 +619,9 @@ proc output1_arbiter(
         }) >>
 
 
-        // --------------------------------------------------------
-        // Fill Input 1 buffer
-        // --------------------------------------------------------
+        // ========================================================
+        // FILL INPUT 1 BUFFER
+        // ========================================================
 
         (if *valid1 == 1'b0 {
 
@@ -538,209 +647,238 @@ proc output1_arbiter(
         }) >>
 
 
-        // --------------------------------------------------------
-        // Arbitration
-        // --------------------------------------------------------
+        // ========================================================
+        // ARBITRATION
+        // ========================================================
 
-        (if *lock1 == 1'b1 {
+        (
+            if *lock1 == 1'b1 {
 
-            // ====================================================
-            // PACKET LOCK ACTIVE
-            // ====================================================
+                // =================================================
+                // PACKET LOCK ACTIVE
+                // =================================================
 
-            if *owner1 == 1'b0 {
+                if *owner1 == 1'b0 {
 
-                if *valid0 == 1'b1 {
+                    // ------------------------------------------------
+                    // Input 0 owns Output 1
+                    // ------------------------------------------------
+
+                    if *valid0 == 1'b1 {
+
+                        send out1.beat(*packet0) >>
+
+                        if (*packet0)[33] == 1'b1 {
+
+                            // TLAST transferred.
+
+                            if *valid1 == 1'b1 {
+
+                                {
+                                    set valid0 := 1'b0;
+                                    set lock1 := 1'b0;
+                                    set rr1 := 1'b1
+                                }
+
+                            } else {
+
+                                {
+                                    set valid0 := 1'b0;
+                                    set lock1 := 1'b0
+                                }
+                            }
+
+                        } else {
+
+                            // Packet continues.
+                            // RR unchanged.
+
+                            set valid0 := 1'b0
+
+                        }
+
+                    } else {
+
+                        cycle 1
+
+                    }
+
+                } else {
+
+                    // ------------------------------------------------
+                    // Input 1 owns Output 1
+                    // ------------------------------------------------
+
+                    if *valid1 == 1'b1 {
+
+                        send out1.beat(*packet1) >>
+
+                        if (*packet1)[33] == 1'b1 {
+
+                            // TLAST transferred.
+
+                            if *valid0 == 1'b1 {
+
+                                {
+                                    set valid1 := 1'b0;
+                                    set lock1 := 1'b0;
+                                    set rr1 := 1'b0
+                                }
+
+                            } else {
+
+                                {
+                                    set valid1 := 1'b0;
+                                    set lock1 := 1'b0
+                                }
+                            }
+
+                        } else {
+
+                            // Packet continues.
+                            // RR unchanged.
+
+                            set valid1 := 1'b0
+
+                        }
+
+                    } else {
+
+                        cycle 1
+
+                    }
+                }
+            }
+
+            else {
+
+                // =================================================
+                // NO PACKET LOCK
+                // =================================================
+
+                if ((*valid0 == 1'b1) & (*valid1 == 1'b1)) {
+
+                    // =================================================
+                    // CONTENTION
+                    // =================================================
+
+                    if *rr1 == 1'b0 {
+
+                        // Input 0 wins.
+
+                        send out1.beat(*packet0) >>
+
+                        if (*packet0)[33] == 1'b1 {
+
+                            // TLAST + contention -> flip RR.
+
+                            {
+                                set valid0 := 1'b0;
+                                set rr1 := 1'b1
+                            }
+
+                        } else {
+
+                            // Packet continues.
+                            // Lock to Input 0.
+                            // RR unchanged.
+
+                            {
+                                set valid0 := 1'b0;
+                                set lock1 := 1'b1;
+                                set owner1 := 1'b0
+                            }
+                        }
+
+                    } else {
+
+                        // Input 1 wins.
+
+                        send out1.beat(*packet1) >>
+
+                        if (*packet1)[33] == 1'b1 {
+
+                            // TLAST + contention -> flip RR.
+
+                            {
+                                set valid1 := 1'b0;
+                                set rr1 := 1'b0
+                            }
+
+                        } else {
+
+                            // Packet continues.
+                            // Lock to Input 1.
+                            // RR unchanged.
+
+                            {
+                                set valid1 := 1'b0;
+                                set lock1 := 1'b1;
+                                set owner1 := 1'b1
+                            }
+                        }
+                    }
+                }
+
+                else if *valid0 == 1'b1 {
+
+                    // =================================================
+                    // ONLY INPUT 0
+                    // =================================================
 
                     send out1.beat(*packet0) >>
 
                     if (*packet0)[33] == 1'b1 {
 
-                        {
-                            set valid0 := 1'b0;
-                            set lock1 := 1'b0
-                        }
+                        set valid0 := 1'b0
 
                     } else {
 
-                        set valid0 := 1'b0
-
+                        {
+                            set valid0 := 1'b0;
+                            set lock1 := 1'b1;
+                            set owner1 := 1'b0
+                        }
                     }
-
-                } else {
-
-                    cycle 1
 
                 }
 
-            } else {
+                else if *valid1 == 1'b1 {
 
-                if *valid1 == 1'b1 {
+                    // =================================================
+                    // ONLY INPUT 1
+                    // =================================================
 
                     send out1.beat(*packet1) >>
 
                     if (*packet1)[33] == 1'b1 {
 
+                        set valid1 := 1'b0
+
+                    } else {
+
                         {
                             set valid1 := 1'b0;
-                            set lock1 := 1'b0
-                        }
-
-                    } else {
-
-                        set valid1 := 1'b0
-
-                    }
-
-                } else {
-
-                    cycle 1
-
-                }
-            }
-
-        }
-
-        else {
-
-            // ====================================================
-            // NO PACKET LOCK
-            // ====================================================
-
-            if ((*valid0 == 1'b1) & (*valid1 == 1'b1)) {
-
-                // ------------------------------------------------
-                // CONTENTION
-                // ------------------------------------------------
-
-                if *rr1 == 1'b0 {
-
-                    // Input 0 wins
-
-                    send out1.beat(*packet0) >>
-
-                    {
-                        set rr1 := 1'b1;
-                        set valid0 := 1'b0
-                    } >>
-
-                    if (*packet0)[33] == 1'b0 {
-
-                        {
-                            set lock1 := 1'b1;
-                            set owner1 := 1'b0
-                        }
-
-                    } else {
-
-                        cycle 1
-
-                    }
-
-                } else {
-
-                    // Input 1 wins
-
-                    send out1.beat(*packet1) >>
-
-                    {
-                        set rr1 := 1'b0;
-                        set valid1 := 1'b0
-                    } >>
-
-                    if (*packet1)[33] == 1'b0 {
-
-                        {
                             set lock1 := 1'b1;
                             set owner1 := 1'b1
                         }
-
-                    } else {
-
-                        cycle 1
-
                     }
+
                 }
-            }
 
-            else if *valid0 == 1'b1 {
-
-                // ------------------------------------------------
-                // ONLY INPUT 0
-                // ------------------------------------------------
-
-                send out1.beat(*packet0) >>
-                set valid0 := 1'b0 >>
-
-                if (*packet0)[33] == 1'b0 {
-
-                    {
-                        set lock1 := 1'b1;
-                        set owner1 := 1'b0
-                    }
-
-                } else {
+                else {
 
                     cycle 1
 
                 }
-
             }
-
-            else if *valid1 == 1'b1 {
-
-                // ------------------------------------------------
-                // ONLY INPUT 1
-                // ------------------------------------------------
-
-                send out1.beat(*packet1) >>
-                set valid1 := 1'b0 >>
-
-                if (*packet1)[33] == 1'b0 {
-
-                    {
-                        set lock1 := 1'b1;
-                        set owner1 := 1'b1
-                    }
-
-                } else {
-
-                    cycle 1
-
-                }
-
-            }
-
-            else {
-
-                cycle 1
-
-            }
-        })
+        )
     }
 }
 
 
 // ============================================================
-// TOP
-// ============================================================
-//
-// External Part C interface.
-//
-// Input channels:
-//
-//   in0
-//   in1
-//
-// Output channels:
-//
-//   out0
-//   out1
-//
-// No internal test sources or sinks are used here.
-// The SystemVerilog testbench provides the stimulus and consumes
-// the outputs.
-//
+// TOP LEVEL
 // ============================================================
 
 proc Top(
@@ -750,9 +888,9 @@ proc Top(
     out1 : right stream_ch
 ) {
 
-    // --------------------------------------------------------
-    // Internal routing channels
-    // --------------------------------------------------------
+    // ========================================================
+    // INTERNAL ROUTING CHANNELS
+    // ========================================================
 
     chan r00_left -- r00_right : route_ch;
     chan r01_left -- r01_right : route_ch;
@@ -761,9 +899,9 @@ proc Top(
     chan r11_left -- r11_right : route_ch;
 
 
-    // --------------------------------------------------------
-    // Input 0
-    // --------------------------------------------------------
+    // ========================================================
+    // INPUT 0
+    // ========================================================
 
     spawn input0_router(
         in0,
@@ -772,9 +910,9 @@ proc Top(
     );
 
 
-    // --------------------------------------------------------
-    // Input 1
-    // --------------------------------------------------------
+    // ========================================================
+    // INPUT 1
+    // ========================================================
 
     spawn input1_router(
         in1,
@@ -783,9 +921,9 @@ proc Top(
     );
 
 
-    // --------------------------------------------------------
-    // Output 0
-    // --------------------------------------------------------
+    // ========================================================
+    // OUTPUT 0
+    // ========================================================
 
     spawn output0_arbiter(
         r00_left,
@@ -794,9 +932,9 @@ proc Top(
     );
 
 
-    // --------------------------------------------------------
-    // Output 1
-    // --------------------------------------------------------
+    // ========================================================
+    // OUTPUT 1
+    // ========================================================
 
     spawn output1_arbiter(
         r01_left,
@@ -805,9 +943,9 @@ proc Top(
     );
 
 
-    // --------------------------------------------------------
-    // Keep top-level process alive
-    // --------------------------------------------------------
+    // ========================================================
+    // KEEP TOP LEVEL ALIVE
+    // ========================================================
 
     loop {
         cycle 1
