@@ -1,0 +1,115 @@
+#! /opt/homebrew/Cellar/icarus-verilog/13.0/bin/vvp
+:ivl_version "13.0 (stable)" "(v13_0)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/system.vpi";
+:vpi_module "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/v2005_math.vpi";
+:vpi_module "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/va_math.vpi";
+:vpi_module "/opt/homebrew/Cellar/icarus-verilog/13.0/lib/ivl/v2009.vpi";
+S_0x1051bf860 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x1051bc930 .scope module, "tb_fixed" "tb_fixed" 3 1;
+ .timescale 0 0;
+v0xa65864000_0 .var "clk", 0 0;
+v0xa658640a0_0 .net "disable_o", 0 0, L_0x1051c5440;  1 drivers
+v0xa65864140_0 .var "op", 2 0;
+v0xa658641e0_0 .var "rst_n", 0 0;
+v0xa65864280_0 .net "stuck_o", 0 0, v0x1051c5260_0;  1 drivers
+S_0x1051bcab0 .scope module, "dut" "keymgr_fixed" 3 12, 4 1 0, S_0x1051bc930;
+ .timescale 0 0;
+    .port_info 0 /INPUT 1 "clk_i";
+    .port_info 1 /INPUT 1 "rst_ni";
+    .port_info 2 /INPUT 3 "op_i";
+    .port_info 3 /OUTPUT 1 "disable_o";
+    .port_info 4 /OUTPUT 1 "stuck_o";
+L_0x1051c5440 .functor OR 1, L_0x1051c5300, L_0x1051c53a0, C4<0>, C4<0>;
+L_0xa65454010 .functor BUFT 1, C4<100>, C4<0>, C4<0>, C4<0>;
+v0x1051c5da0_0 .net/2u *"_ivl_0", 2 0, L_0xa65454010;  1 drivers
+v0x1051c5e40_0 .net *"_ivl_2", 0 0, L_0x1051c5300;  1 drivers
+L_0xa65454058 .functor BUFT 1, C4<101>, C4<0>, C4<0>, C4<0>;
+v0x1051c5ee0_0 .net/2u *"_ivl_4", 2 0, L_0xa65454058;  1 drivers
+v0x1051c4f40_0 .net *"_ivl_6", 0 0, L_0x1051c53a0;  1 drivers
+v0x1051c4fe0_0 .net "clk_i", 0 0, v0xa65864000_0;  1 drivers
+v0x1051c5080_0 .net "disable_o", 0 0, L_0x1051c5440;  alias, 1 drivers
+v0x1051c5120_0 .net "op_i", 2 0, v0xa65864140_0;  1 drivers
+v0x1051c51c0_0 .net "rst_ni", 0 0, v0xa658641e0_0;  1 drivers
+v0x1051c5260_0 .var "stuck_o", 0 0;
+E_0xa650002c0/0 .event negedge, v0x1051c51c0_0;
+E_0xa650002c0/1 .event posedge, v0x1051c4fe0_0;
+E_0xa650002c0 .event/or E_0xa650002c0/0, E_0xa650002c0/1;
+L_0x1051c5300 .cmp/eq 3, v0xa65864140_0, L_0xa65454010;
+L_0x1051c53a0 .cmp/ge 3, v0xa65864140_0, L_0xa65454058;
+    .scope S_0x1051bcab0;
+T_0 ;
+    %wait E_0xa650002c0;
+    %load/vec4 v0x1051c51c0_0;
+    %nor/r;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_0.0, 8;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x1051c5260_0, 0;
+    %jmp T_0.1;
+T_0.0 ;
+    %load/vec4 v0x1051c5120_0;
+    %cmpi/u 5, 0, 3;
+    %flag_inv 5; GE is !LT
+    %jmp/0xz  T_0.2, 5;
+    %pushi/vec4 0, 0, 1;
+    %assign/vec4 v0x1051c5260_0, 0;
+T_0.2 ;
+T_0.1 ;
+    %jmp T_0;
+    .thread T_0;
+    .scope S_0x1051bc930;
+T_1 ;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0xa65864000_0, 0, 1;
+    %pushi/vec4 0, 0, 1;
+    %store/vec4 v0xa658641e0_0, 0, 1;
+    %end;
+    .thread T_1, $init;
+    .scope S_0x1051bc930;
+T_2 ;
+    %delay 5, 0;
+    %load/vec4 v0xa65864000_0;
+    %inv;
+    %store/vec4 v0xa65864000_0, 0, 1;
+    %jmp T_2;
+    .thread T_2;
+    .scope S_0x1051bc930;
+T_3 ;
+    %pushi/vec4 5, 0, 3;
+    %store/vec4 v0xa65864140_0, 0, 3;
+    %delay 12, 0;
+    %pushi/vec4 1, 0, 1;
+    %store/vec4 v0xa658641e0_0, 0, 1;
+    %delay 10, 0;
+    %load/vec4 v0xa658640a0_0;
+    %cmpi/e 1, 0, 1;
+    %flag_get/vec4 6;
+    %jmp/0 T_3.2, 6;
+    %load/vec4 v0xa65864280_0;
+    %pushi/vec4 0, 0, 1;
+    %cmp/e;
+    %flag_get/vec4 6;
+    %and;
+T_3.2;
+    %flag_set/vec4 8;
+    %jmp/0xz  T_3.0, 8;
+    %vpi_call/w 3 26 "$display", "PASS: reserved operation treated as Disable" {0 0 0};
+    %jmp T_3.1;
+T_3.0 ;
+    %vpi_call/w 3 28 "$display", "FAIL: fixed implementation incorrect" {0 0 0};
+T_3.1 ;
+    %vpi_call/w 3 30 "$finish" {0 0 0};
+    %end;
+    .thread T_3;
+# The file index is used to find the file name in the following table.
+:file_names 5;
+    "N/A";
+    "<interactive>";
+    "-";
+    "tb_fixed.sv";
+    "fixed.sv";
