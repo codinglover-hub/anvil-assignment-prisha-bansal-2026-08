@@ -192,16 +192,14 @@ vvp bug5_fixed
 
 Observed result:
 
-```text
+
 FIXED: address=0 size=4
 FIXED: address=4 size=2
 FIXED: address=6 size=4
 FIXED: address=10 size=2
-```
 
 The coverage check reports:
 
-```text
 byte 0: TRANSFERRED
 byte 1: TRANSFERRED
 byte 2: TRANSFERRED
@@ -216,7 +214,7 @@ byte 10: TRANSFERRED
 byte 11: TRANSFERRED
 
 PASS: all 12 bytes were transferred.
-```
+
 
 Therefore, the same scenario that loses bytes in the buggy implementation transfers every byte in the fixed implementation.
 
@@ -228,15 +226,11 @@ OpenTitan Issue #31191 explains that the bug was not detected by design verifica
 
 Consequently, the verification environment did not exercise the important boundary case where:
 
-```text
 CHUNK_DATA_SIZE % TRANSFER_WIDTH != 0
-```
 
 For example:
 
-```text
 6 % 4 = 2
-```
 
 creates a partial final transaction and exposes the bug.
 
@@ -252,17 +246,16 @@ This bug belongs to the broader class of errors where control logic updates coun
 
 The violated invariant is:
 
-```text
+
 next_address =
     current_address + actual_bytes_transferred
-```
+
 
 not:
 
-```text
+
 next_address =
     current_address + maximum_transfer_width
-```
 
 The same principle applies to:
 
@@ -276,10 +269,10 @@ The same principle applies to:
 
 A general invariant that should hold is:
 
-```text
+
 progress_after_transaction =
     progress_before_transaction + actual_transaction_size
-```
+
 
 ---
 
