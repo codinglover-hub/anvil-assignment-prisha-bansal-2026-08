@@ -4,7 +4,7 @@
 
 **Design:** OpenTitan DMA RTL  
 **Source:** OpenTitan GitHub Issue #31191  
-**Issue:** `[dma/rtl] CHUNK_DATA_SIZE needs to be a multiple of TRANSFER_WIDTH`  
+**Issue:** [dma/rtl] CHUNK_DATA_SIZE needs to be a multiple of TRANSFER_WIDTH 
 **Issue URL:** https://github.com/lowRISC/opentitan/issues/31191  
 **Issue opened:** September 1, 2026  
 **Bug class:** Incorrect accounting for partial transfers / counter and address advancement based on nominal transfer width
@@ -15,11 +15,11 @@
 
 The OpenTitan DMA supports three relevant sizes:
 
-- `TOTAL_DATA_SIZE` — total number of bytes in the transfer.
-- `CHUNK_DATA_SIZE` — number of bytes in each chunk.
-- `TRANSFER_WIDTH` — number of bytes transferred in one transaction.
+- TOTAL_DATA_SIZE — total number of bytes in the transfer.
+- CHUNK_DATA_SIZE — number of bytes in each chunk.
+- TRANSFER_WIDTH — number of bytes transferred in one transaction.
 
-When a chunk ends with fewer bytes remaining than `TRANSFER_WIDTH`, the DMA must transfer only the remaining bytes and advance its counters and addresses by the number of bytes actually transferred.
+When a chunk ends with fewer bytes remaining than TRANSFER_WIDTH, the DMA must transfer only the remaining bytes and advance its counters and addresses by the number of bytes actually transferred.
 
 For example:
 
