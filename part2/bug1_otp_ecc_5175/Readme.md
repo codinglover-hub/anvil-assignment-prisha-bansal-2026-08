@@ -1,4 +1,4 @@
-# Bug 1: OTP ECC Error Reporting
+# Bug 2: OTP ECC Error Reporting
 
 ## 1. Overview
 
