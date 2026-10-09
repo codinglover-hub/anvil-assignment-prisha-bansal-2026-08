@@ -1,0 +1,24 @@
+cd ~/Desktop/otp_bug
+
+{
+  echo "OTP ECC BUG REPRODUCTION RESULTS"
+  echo "================================"
+  echo ""
+
+  echo "1. BUGGY IMPLEMENTATION"
+  iverilog -g2012 -s tb_otp_ecc_buggy \
+    -o buggy_sim otp_ecc_buggy.sv tb_otp_ecc_buggy.sv
+
+  ./buggy_sim 2>&1
+  echo "Buggy simulation exit code: $?"
+  echo ""
+
+  echo "2. FIXED IMPLEMENTATION"
+  iverilog -g2012 -s tb_otp_ecc_fixed \
+    -o fixed_sim otp_ecc_fixed.sv tb_otp_ecc_fixed.sv
+
+  ./fixed_sim 2>&1
+  echo "Fixed simulation exit code: $?"
+} > results.txt 2>&1
+
+cat results.txt
