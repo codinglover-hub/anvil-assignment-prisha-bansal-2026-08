@@ -351,3 +351,72 @@ OpenTitan GitHub Issue #31191:
 `[dma/rtl] CHUNK_DATA_SIZE needs to be a multiple of TRANSFER_WIDTH`
 
 https://github.com/lowRISC/opentitan/issues/31191
+
+
+cd ~/Desktop/anvil-assignment-prisha-bansal-2026-08/bug5_dma/bug5
+
+cat > README.md <<'EOF'
+# Bug 5 — DMA Chunk-Transfer Progress Error
+
+## Reference
+
+OpenTitan issue #31191:
+https://github.com/lowRISC/opentitan/issues/31191
+
+## Bug description
+
+The reported configuration uses a total transfer size of 12 bytes,
+a chunk size of 6 bytes, and a transfer width of 4 bytes.
+
+The first chunk requires a 4-byte transfer followed by a 2-byte
+partial transfer. The bug is that progress is advanced incorrectly
+after the partial transfer. The next chunk can start at byte offset 8
+instead of offset 6, skipping bytes 6 and 7.
+
+## Reproducer
+
+This directory contains a reduced behavioral model and testbenches:
+
+- `buggy.sv` — model of the faulty progress behavior.
+- `tb_buggy.sv` — checks that bytes 6 and 7 are skipped.
+- `fixed.sv` — corrected reduced model.
+- `tb_fixed.sv` — checks that all 12 bytes are transferred.
+
+Run both tests with:
+
+```bash
+./run.sh
+```
+
+Expected results:
+
+- Buggy model: `BUG REPRODUCED`
+- Fixed model: `PASS: all 12 bytes were transferred.`
+
+## Important limitation
+
+These files are a reduced behavioral reproducer of the issue's
+reported failure scenario. They are not the production OpenTitan DMA
+RTL, and this test does not establish that the production RTL was
+compiled or simulated.
+
+## Verification invariant
+
+For a successful 12-byte transfer, every byte offset from 0 through
+11 must be transferred exactly once, in the correct order, with no
+gaps or unintended overlaps.
+EOF
+
+cat > .gitignore <<'EOF'
+buggy_sim
+fixed_sim
+bug5_buggy
+bug5_fixed
+buggy.log
+fixed.log
+*.vcd
+EOF
+
+chmod +x run.sh
+./run.sh
+
