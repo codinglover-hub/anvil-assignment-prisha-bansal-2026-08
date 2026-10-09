@@ -1,50 +1,45 @@
+`timescale 1ns/1ps
+
 module tb_fixed;
+  localparam logic [1:0] EscalateSt = 2'b10;
 
-    logic clk = 0;
-    logic rst_n = 0;
-    logic req;
+  logic clk_i = 1'b0;
+  logic rst_ni = 1'b0;
+  logic [1:0] state_invalid_error = 2'b00;
+  logic token_if_fsm_err_i = 1'b0;
+  logic esc_scrap_state0_i = 1'b0;
+  logic esc_scrap_state1_i = 1'b0;
+  logic [1:0] state_o;
 
-    logic [7:0] otp_key;
-    logic [7:0] otp_rand_key;
+  always #5 clk_i = ~clk_i;
 
-    logic [7:0] addr_key;
-    logic [7:0] rand_addr_key;
+  lc_ctrl_fsm_fixed dut (.*);
 
-    always #5 clk = ~clk;
+  initial begin
+    repeat (2) @(negedge clk_i);
+    rst_ni = 1'b1;
+    @(negedge clk_i);
 
-    flash_lcmgr_fixed dut (
-        .clk_i(clk),
-        .rst_ni(rst_n),
-        .req_i(req),
-        .otp_key_i(otp_key),
-        .otp_rand_key_i(otp_rand_key),
-        .addr_key_o(addr_key),
-        .rand_addr_key_o(rand_addr_key)
-    );
+    // Both error and escalation are asserted.
+    token_if_fsm_err_i = 1'b1;
+    esc_scrap_state0_i = 1'b1;
 
-    initial begin
-        req = 0;
-        otp_key = 8'hA5;
-        otp_rand_key = 8'h3C;
+    @(negedge clk_i);
 
-        #12;
-        rst_n = 1;
+    if (state_o != EscalateSt)
+      $fatal(1,
+        "FAIL: expected EscalateSt, got %b", state_o);
 
-        #8;
-        req = 1;
+    // Remove global request but keep local error asserted.
+    esc_scrap_state0_i = 1'b0;
+    @(negedge clk_i);
 
-        #10;
-        req = 0;
+    if (state_o != EscalateSt)
+      $fatal(1,
+        "FAIL: FSM left EscalateSt, got %b", state_o);
 
-        if (rand_addr_key === otp_key)
-            $display("PASS: fixed implementation produces correct key");
-        else begin
-            $display("FAIL: fixed implementation is incorrect");
-            $display("Expected: %h", otp_key);
-            $display("Actual:   %h", rand_addr_key);
-        end
-
-        $finish;
-    end
-
+    $display(
+      "PASS: global escalation wins and EscalateSt is retained.");
+    $finish;
+  end
 endmodule
