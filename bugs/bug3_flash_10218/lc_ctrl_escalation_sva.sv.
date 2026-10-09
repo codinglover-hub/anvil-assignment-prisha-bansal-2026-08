@@ -1,0 +1,38 @@
+module lc_ctrl_escalation_sva #(
+    parameter logic [1:0] InvalidSt  = 2'b01,
+    parameter logic [1:0] EscalateSt = 2'b10
+) (
+    input logic       clk_i,
+    input logic       rst_ni,
+    input logic [1:0] state_o,
+    input logic [1:0] state_invalid_error,
+    input logic       token_if_fsm_err_i,
+    input logic       esc_scrap_state0_i,
+    input logic       esc_scrap_state1_i
+);
+
+    default clocking cb @(posedge clk_i); endclocking
+
+    // Property 1:
+    // Global escalation must win over a simultaneous local FSM error.
+    property p_escalation_priority;
+        disable iff (!rst_ni)
+        ((esc_scrap_state0_i || esc_scrap_state1_i) &&
+         ((|state_invalid_error) || token_if_fsm_err_i))
+        |=> (state_o == EscalateSt);
+    endproperty
+
+    assert property (p_escalation_priority)
+        else $error("Global escalation did not take priority");
+
+    // Property 2:
+    // Once in EscalateSt, the FSM must remain there.
+    property p_escalation_state_sticky;
+        disable iff (!rst_ni)
+        (state_o == EscalateSt) |=> (state_o == EscalateSt);
+    endproperty
+
+    assert property (p_escalation_state_sticky)
+        else $error("FSM left EscalateSt");
+
+endmodule
