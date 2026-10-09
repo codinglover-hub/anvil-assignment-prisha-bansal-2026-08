@@ -282,25 +282,25 @@ A useful assertion should check that address advancement matches the actual numb
 
 Conceptually:
 
-```systemverilog
+
 assert property (
     @(posedge clk)
     disable iff (!rst_n)
     transfer_valid |=> 
         next_addr == $past(current_addr + actual_transfer_size)
 );
-```
+
 
 A corresponding counter property can check:
 
-```systemverilog
+
 assert property (
     @(posedge clk)
     disable iff (!rst_n)
     transfer_valid |>
         next_count == $past(current_count + actual_transfer_size)
 );
-```
+
 
 The important point is that the checker must use the **actual transfer size**, rather than merely checking that the address increments by `TRANSFER_WIDTH`.
 
@@ -316,9 +316,9 @@ The main assumptions are:
 
 A stronger verification strategy should also deliberately test cases where:
 
-```text
+
 CHUNK_DATA_SIZE % TRANSFER_WIDTH != 0
-```
+
 
 rather than constraining them away.
 
@@ -330,11 +330,11 @@ rather than constraining them away.
 
 **Simulation environment:**
 
-```text
+
 macOS
 Icarus Verilog
 SystemVerilog (-g2012)
-```
+
 
 **Buggy result:** Bytes 6 and 7 missing.
 
