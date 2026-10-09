@@ -8,15 +8,14 @@ The bug was caused by assigning the address random-key output from the wrong fie
 
 The buggy RTL used:
 
-```systemverilog
+
 rand_addr_key_o <= flash_key_t'(otp_key_rsp_i.rand_key);
-```
+
 
 when the intended source was:
 
-```systemverilog
 rand_addr_key_o <= flash_key_t'(otp_key_rsp_i.key);
-```
+
 
 The two signals are syntactically compatible, so the design compiles normally. However, the output contains the wrong value.
 
@@ -38,23 +37,22 @@ This bug is documented in OpenTitan issue **#10218**.
 
 The original issue reports the following assignment:
 
-```systemverilog
+
 if (addr_key_req_d && addr_key_ack_q) begin
   addr_key_o <= flash_key_t'(otp_key_rsp_i.key);
   rand_addr_key_o <= flash_key_t'(otp_key_rsp_i.rand_key);
 end
-```
 
 The issue identifies the second assignment as incorrect.
 
 The corresponding data-key assignments were:
 
-```systemverilog
+
 if (data_key_req_d && data_key_ack_q) begin
   data_key_o <= flash_key_t'(otp_key_rsp_i.key);
   rand_data_key_o <= flash_key_t'(otp_key_rsp_i.rand_key);
 end
-```
+
 
 The intended address-key random output should use the `key` field according to the reported fix.
 
@@ -74,21 +72,21 @@ For the address-key request path, the relevant OTP response field must be propag
 
 The expected relationship is:
 
-```text
+
 OTP key response
        |
        +---- key ----------> rand_addr_key_o
-```
+
 
 in the affected path.
 
 Instead, the buggy implementation created:
 
-```text
+
 OTP key response
        |
        +---- rand_key -----> rand_addr_key_o
-```
+
 
 Therefore, the RTL produced a value from the wrong source field.
 
@@ -100,15 +98,15 @@ The fault is a **wrong signal/data-source association**.
 
 The buggy assignment is:
 
-```systemverilog
+
 rand_addr_key_o <= otp_key_rsp_i.rand_key;
-```
+
 
 while the corrected assignment is:
 
-```systemverilog
+
 rand_addr_key_o <= otp_key_rsp_i.key;
-```
+
 
 Both fields have compatible types/widths, so SystemVerilog accepts the assignment.
 
@@ -116,7 +114,7 @@ There is therefore no syntax, type, or elaboration error.
 
 The failure is purely semantic:
 
-```text
+
 Expected:
 
 rand_addr_key_o = otp_key_rsp_i.key
@@ -125,7 +123,6 @@ rand_addr_key_o = otp_key_rsp_i.key
 Buggy:
 
 rand_addr_key_o = otp_key_rsp_i.rand_key
-```
 
 If the two OTP fields contain different values, the incorrect data is observable at `rand_addr_key_o`.
 
@@ -143,7 +140,7 @@ The files in this directory reduce the original mechanism to a small SystemVeril
 
 The buggy implementation intentionally connects the output to the wrong OTP field:
 
-```systemverilog
+
 module flash_key_buggy (
     input  logic        clk_i,
     input  logic        rst_ni,
@@ -161,7 +158,7 @@ module flash_key_buggy (
   end
 
 endmodule
-```
+
 
 ### Fixed implementation
 
@@ -169,7 +166,7 @@ endmodule
 
 The corrected implementation uses the intended key field:
 
-```systemverilog
+
 module flash_key_fixed (
     input  logic        clk_i,
     input  logic        rst_ni,
@@ -187,7 +184,7 @@ module flash_key_fixed (
   end
 
 endmodule
-```
+
 
 The reproducer deliberately gives the two input fields different values. This makes the incorrect source selection observable.
 
