@@ -3,6 +3,7 @@ module bkdr_repro (
   input  logic [7:0] target_idx_i,
   output logic       tgt_idx_err_o
 );
+
   typedef enum logic [3:0] {
     Tgt0  = 4'd0,
     Tgt1  = 4'd1,
@@ -22,12 +23,14 @@ module bkdr_repro (
 
   assign casted = bkdr_idx_e'(target_idx_i);
 
-  assign tgt_idx_err_o =
-      !(casted == Tgt0  || casted == Tgt1  ||
-        casted == Tgt2  || casted == Tgt3  ||
-        casted == Tgt4  || casted == Tgt5  ||
-        casted == Tgt6  || casted == Tgt7  ||
-        casted == Tgt8  || casted == Tgt9  ||
-        casted == Tgt10 || casted == Tgt11);
+  assign tgt_idx_err_o = !(
+    casted == Tgt0  || casted == Tgt1  ||
+    casted == Tgt2  || casted == Tgt3  ||
+    casted == Tgt4  || casted == Tgt5  ||
+    casted == Tgt6  || casted == Tgt7  ||
+    casted == Tgt8  || casted == Tgt9  ||
+    casted == Tgt10 || casted == Tgt11
+  );
 
 endmodule
+
