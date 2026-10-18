@@ -22,10 +22,10 @@ module tb_buggy;
         #12 rst_n = 1;
         #10;
 
-        if (disable_o !== 1'b1 || stuck_o !== 1'b0)
-            $display("BUG DETECTED: reserved operation not treated as Disable");
-        else
-            $display("ERROR: BUG NOT DETECTED");
+        if (disable_o !== 1'b0 || stuck_o !== 1'b1)
+    $fatal(1, "FAIL: expected reserved encoding bug");
+
+$fatal(1, "BUG REPRODUCED: reserved encoding is not Disable");
 
         $finish;
     end
