@@ -1,34 +1,10 @@
 
 `timescale 1ns/1ps
 
-// ============================================================================
-// ROUTER TESTBENCH
-// ============================================================================
-// 2-input / 2-output ready-valid stream router
-//
-// Tests:
-//   1. Input 0 -> Output 0
-//   2. Input 1 -> Output 1
-//   3. Concurrent traffic
-//   4. Contention / Round-robin
-//   5. Backpressure
-//   6. Multi-beat packet locking
-//   7. Output 0 stability
-//   8. Output 1 stability
-//   9. Output 0 TLAST
-//  10. Output 1 TLAST
-//  11. Reset behaviour
-//  12. Mixed traffic
-//  13. Round-robin fairness - Output 0
-//  14. Round-robin fairness - Output 1
-// ============================================================================
+
 
 module tb_router_sva;
-
-    // =========================================================================
-    // CLOCK / RESET
-    // =========================================================================
-
+    
     logic clk;
     logic rst_n;
 
@@ -1020,19 +996,17 @@ module tb_router_sva;
         test_mixed();
         test_rr_output0();
         test_rr_output1();
-
-        // Give the checker time to execute its final clocked checks.
         repeat (2)
             @(posedge clk);
 
         #2;
 
         $display("");
-        $display("==============================================================");
+        $display("---");
         $display("");
-        $display("                    TESTBENCH SUMMARY");
+        $display("TESTBENCH SUMMARY");
         $display("");
-        $display("==============================================================");
+        $display("===");
         $display("");
 
         $display("Tests executed : %0d", test_count);
@@ -1047,7 +1021,7 @@ module tb_router_sva;
             $display("TESTBENCH RESULT : FAILURES DETECTED");
 
         $display("");
-        $display("==============================================================");
+        $display("===");
         $display("");
 
         $finish;
