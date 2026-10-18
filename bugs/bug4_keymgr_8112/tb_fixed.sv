@@ -22,11 +22,13 @@ module tb_fixed;
         #12 rst_n = 1;
         #10;
 
-        if (disable_o === 1'b1 && stuck_o === 1'b0)
-            $display("PASS: reserved operation treated as Disable");
-        else
-            $display("FAIL: fixed implementation incorrect");
+        if (disable_o !== 1'b1)
+    $fatal(1, "FAIL: reserved encoding must disable");
 
+        if (stuck_o !== 1'b0)
+    $fatal(1, "FAIL: unexpected stuck state");
+
+        $display("PASS: reserved encoding handled correctly");
         $finish;
     end
 
