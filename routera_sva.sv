@@ -3,25 +3,6 @@
 // ============================================================================
 // PART B - ROUTER VERIFICATION CHECKER
 // ============================================================================
-//
-// DUT:
-//   2-input / 2-output ready-valid stream router.
-//
-// Verification properties:
-//
-//   P1  - Routing correctness
-//   P2  - Data and TLAST correctness
-//   P3  - Ready/Valid stability under backpressure
-//   P4  - Mutual exclusion
-//   P5  - Packet locking and ownership
-//   P6A - Round-robin pointer update
-//   P6B - Fairness under contention
-//
-// Icarus Verilog 13.0 does not support the concurrent SVA constructs used
-// by SystemVerilog Assertions. Therefore the checker below implements the
-// same temporal intent using procedural clocked checks.
-//
-// ============================================================================
 
 module router_sva (
 
@@ -447,9 +428,6 @@ module router_sva (
 
             // =================================================================
             // P4 - MUTUAL EXCLUSION
-            // =====================================================================
-            //
-            // An input cannot be selected by both outputs at the same time.
             // =================================================================
 
             if ((grant0 === 1'b1) &&
